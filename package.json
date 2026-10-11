@@ -1,0 +1,23 @@
+{
+  "name": "watchparty",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "dev": "pnpm --filter @watchparty/web dev",
+    "build": "pnpm -r run build",
+    "test": "pnpm -r run test",
+    "typecheck": "pnpm -r run typecheck",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "db:test": "supabase test db",
+    "db:concurrency": "deno run --allow-net --allow-env supabase/tests/concurrency.ts",
+    "fn:test": "deno test --allow-net --allow-env supabase/tests/functions",
+    "e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.0",
+    "supabase": "^2.120.0",
+    "typescript": "^7.0.2"
+  }
+}

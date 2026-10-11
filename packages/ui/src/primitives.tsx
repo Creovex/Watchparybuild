@@ -297,18 +297,23 @@ export function Switch({
         aria-checked={checked}
         disabled={disabled}
         onClick={() => onChange(!checked)}
-        className={cx(
-          'relative mt-0.5 inline-flex h-7 w-12 shrink-0 items-center rounded-full ring-1 ring-inset transition-colors disabled:opacity-50',
-          checked ? 'bg-amber ring-amber' : 'bg-surface-1 ring-line-strong',
-        )}
+        className="group -my-2 inline-flex min-h-11 min-w-11 shrink-0 items-center justify-end disabled:opacity-50"
       >
+        {/* The visible track is smaller than the 44 pixel target around it. */}
         <span
           aria-hidden="true"
           className={cx(
-            'inline-block size-5 rounded-full transition-transform duration-150',
-            checked ? 'translate-x-6 bg-amber-ink' : 'translate-x-1 bg-muted',
+            'relative inline-flex h-7 w-12 items-center rounded-full ring-1 ring-inset transition-colors',
+            checked ? 'bg-amber ring-amber' : 'bg-surface-1 ring-line-strong',
           )}
-        />
+        >
+          <span
+            className={cx(
+              'inline-block size-5 rounded-full transition-transform duration-150',
+              checked ? 'translate-x-6 bg-amber-ink' : 'translate-x-1 bg-muted',
+            )}
+          />
+        </span>
       </button>
     </div>
   );

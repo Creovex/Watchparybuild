@@ -70,6 +70,10 @@ export function RoomStage({ controller, me, onRejoin }: { controller: RoomContro
   useEffect(() => {
     if (voice.error) toast(voiceErrorSentence(voice.error), 'error');
   }, [voice.error, toast]);
+  const hostMuted = voice.local.hostMuted;
+  useEffect(() => {
+    if (hostMuted) toast('The host muted you.', 'info');
+  }, [hostMuted, toast]);
 
   const room = state.room;
   const timed = useMemo(() => state.messages.filter((m) => m.kind === 'timed'), [state.messages]);
@@ -321,7 +325,7 @@ function MicButton({ voice, onJoinVoice, compact = false }: { voice: RoomVoice; 
     return <IconButton icon="sync" label="Rejoin voice" showLabel={!compact} tone="danger" onClick={() => voice.join()} />;
   }
   if (!inVoice) return <IconButton icon="mic" label="Join voice" showLabel={!compact} onClick={onJoinVoice} data-testid="join-voice" />;
-  if (voice.local.hostMuted) return <IconButton icon="micOff" label="Muted by host" showLabel={!compact} tone="muted" disabled />;
+  if (voice.local.hostMuted) return <IconButton icon="micOff" label="The host muted you" showLabel={!compact} tone="muted" disabled />;
   return (
     <IconButton
       icon={voice.local.micEnabled ? 'mic' : 'micOff'}

@@ -93,7 +93,10 @@ export function SyncStatus({ className }: { className?: string }) {
     const inSync = engine.drift === null || Math.abs(engine.drift) < 0.6;
     return (
       <Line tone={inSync ? 'green' : 'amber'} icon={inSync ? 'check' : 'sync'} className={className}>
-        <span className="timecode text-text">{formatTimecode(engine.local ?? engine.expected)}</span>
+        {/* The timecode changes every second; screen readers hear only the state when it changes. */}
+        <span className="timecode text-text" aria-hidden="true">
+          {formatTimecode(engine.local ?? engine.expected)}
+        </span>
         <span>{engine.mode === 'paused' ? 'Paused' : inSync ? 'In sync' : 'Catching up'}</span>
       </Line>
     );

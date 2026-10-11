@@ -126,7 +126,7 @@ function ChatItem({ message, previous, onMenu }: { message: MessageRow; previous
         icon="more"
         label={`Options for ${name === 'You' ? 'your' : `${name}'s`} message`}
         onClick={onMenu}
-        className="!size-9 text-faint opacity-60 group-hover:opacity-100 focus-visible:opacity-100"
+        className="text-faint opacity-60 group-hover:opacity-100 focus-visible:opacity-100"
       />
     </li>
   );

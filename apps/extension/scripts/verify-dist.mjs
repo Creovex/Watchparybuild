@@ -54,7 +54,7 @@ const external = manifest.externally_connectable?.matches ?? [];
 const hostOf = (pattern) => pattern.replace(/^[a-z]+:\/\//, '').split('/')[0];
 check(external.includes('http://localhost:3000/*'), 'externally_connectable includes http://localhost:3000/*');
 check(external.length > 0 && external.every((p) => !hostOf(p).includes('*')), 'externally_connectable has no wildcard hosts');
-check(!external.some((p) => p.includes('vercel.app') && p.includes('*')), 'no vercel.app wildcard');
+check(!external.some((p) => hostOf(p).includes('vercel.app') && hostOf(p).includes('*')), 'no vercel.app wildcard');
 
 const panelEntry = (manifest.web_accessible_resources ?? []).find((r) => r.resources.includes('src/panel/panel.html'));
 const services = /^https:\/\/www\.(netflix\.com|primevideo\.com|disneyplus\.com|amazon\.(com|co\.uk|de|ca))\/\*$/;

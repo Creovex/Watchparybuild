@@ -16,7 +16,7 @@ Everyone who writes in this repository follows [docs/WRITING_RULES.md](docs/WRIT
 | `supabase/migrations` | The database: tables, Row Level Security (RLS) policies, RPCs (Remote Procedure Calls), triggers, scheduled jobs |
 | `supabase/functions` | Edge Functions for calls that need a third party secret |
 | `supabase/tests` | Database tests (pgTAP), the realtime authorization test, the concurrency script, Edge Function tests |
-| `e2e` | Playwright end to end tests E1 to E14 |
+| `e2e` | Playwright end to end tests E1 to E15 |
 | `docs` | Gaps, decisions, spike results, the device matrix |
 
 Open questions for James are at the top of [docs/gaps.md](docs/gaps.md). Every decision taken without him is marked DEFAULT in [docs/decisions.md](docs/decisions.md).
@@ -68,7 +68,7 @@ Then load `apps/extension/dist` unpacked in `chrome://extensions` or `edge://ext
 | `pnpm db:s6` | Spike S6 as a permanent test: realtime authorization on the room topics |
 | `pnpm db:concurrency` | Five simultaneous joins on a free room admit exactly two |
 | `pnpm fn:test` | Edge Function tests (Deno) |
-| `pnpm e2e` | Playwright end to end tests E1 to E14; needs `pnpm db:start` first |
+| `pnpm e2e` | Playwright end to end tests E1 to E15; needs `pnpm db:start` first |
 | `pnpm --filter @watchparty/extension verify-dist` | Checks the built extension: its id, minimal permissions, no wildcard hosts, no secrets |
 | `EXTENSION_E2E=1 pnpm --filter @watchparty/extension e2e` | Loads the built extension in Chromium and checks detection and a handover |
 

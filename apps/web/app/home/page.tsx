@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { isPresent, SOURCE_LABEL, type MemberRow, type RoomRow } from '@watchparty/sync-core';
 import { Badge, Icon, SeatRow } from '@watchparty/ui';
+import { InstallHint } from '@/components/InstallHint';
+import { JoinByLink } from '@/components/JoinByLink';
 import { SiteFooter } from '@/components/SiteFooter';
 import { SiteHeader } from '@/components/SiteHeader';
 import { getUser } from '@/lib/supabase/server';
@@ -39,6 +41,7 @@ export default async function HomePage() {
     <div className="flex min-h-dvh flex-col">
       <SiteHeader profile={profile ? { display_name: profile.display_name, avatar_url: profile.avatar_url } : null} />
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-4 py-8 sm:px-6 lg:py-12">
+        <InstallHint />
         <section className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="flex flex-col gap-2">
             <p className="slate">Signed in as {profile?.display_name ?? user.email}</p>
@@ -51,6 +54,10 @@ export default async function HomePage() {
             <Icon name="play" size={20} />
             Start a room
           </Link>
+        </section>
+
+        <section aria-label="Join a room" className="rounded-xl bg-surface-1 p-4 ring-1 ring-line sm:p-5 lg:max-w-xl">
+          <JoinByLink />
         </section>
 
         <section aria-labelledby="open-rooms" className="flex flex-col gap-3">

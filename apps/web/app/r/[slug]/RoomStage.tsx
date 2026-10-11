@@ -33,6 +33,7 @@ import { errorSentence, voiceErrorSentence } from '@/lib/errors';
 import { isIOS } from '@/lib/adapters/youtube';
 import { DESKTOP_QUERY, PHONE_LANDSCAPE_QUERY, useMediaQuery } from '@/lib/use-media';
 import { seenOnce } from '@/lib/once';
+import { useWakeLock } from '@/lib/use-wake-lock';
 import { ExtensionSlot, HandedOver } from './Handover';
 import { Player } from './Player';
 import type { RoomMe } from './RoomEntry';
@@ -45,6 +46,8 @@ export function RoomStage({ controller, me, onRejoin }: { controller: RoomContro
   const desktop = useMediaQuery(DESKTOP_QUERY);
   const landscape = useMediaQuery(PHONE_LANDSCAPE_QUERY);
   const voice = useRoomVoice(controller);
+  // Keep the screen on while the room is live, so the phone does not lock mid film.
+  useWakeLock(state.status !== 'fatal' && state.room?.status !== 'closed');
   const [duckLevel, setDuckLevel] = useState<number | null>(me.duckLevel);
   useDucking(controller, voice, duckLevel);
   // Stable callbacks: a new function each render would detach and re-attach every member's media.

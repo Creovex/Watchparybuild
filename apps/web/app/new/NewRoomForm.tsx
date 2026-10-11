@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   isPaidSource,
@@ -14,6 +14,7 @@ import {
 import { Button, ChoiceGroup, Icon, Notice, SeatRow, TextField, useCopy } from '@watchparty/ui';
 import { RoomApi } from '@watchparty/ui/room';
 import { CLIENT_SENTENCES, errorSentence } from '@/lib/errors';
+import { defaultRoomName } from '@/lib/room-name';
 import { getBrowserClient } from '@/lib/supabase/client';
 
 const SOURCE_OPTIONS: Array<{ value: Source; label: string }> = [
@@ -23,8 +24,12 @@ const SOURCE_OPTIONS: Array<{ value: Source; label: string }> = [
   { value: 'disney', label: 'Disney+' },
 ];
 
-export function NewRoomForm({ cap }: { cap: number }) {
-  const [title, setTitle] = useState('');
+export function NewRoomForm({ cap, hostName }: { cap: number; hostName?: string | null }) {
+  const startingName = defaultRoomName(hostName);
+  const [title, setTitle] = useState(startingName);
+  // Once someone types a name of their own, nothing fills it in for them again.
+  const [nameEdited, setNameEdited] = useState(false);
+  const [nameFromVideo, setNameFromVideo] = useState(false);
   const [source, setSource] = useState<Source>('youtube');
   const [link, setLink] = useState('');
   const [visibility, setVisibility] = useState<Visibility>('private');
@@ -45,6 +50,27 @@ export function NewRoomForm({ cap }: { cap: number }) {
       : null;
   const titleError = touched && !title.trim() ? 'Give the room a name, up to 80 characters.' : null;
   const youtubeId = source === 'youtube' && parsed?.ok ? parsed.ref : null;
+
+  // Fill the room name with the video's title while the name is still the automatic one.
+  useEffect(() => {
+    if (nameEdited) return;
+    if (!youtubeId) {
+      setTitle(startingName);
+      setNameFromVideo(false);
+      return;
+    }
+    const abort = new AbortController();
+    fetch(`/api/youtube-title?id=${youtubeId}`, { signal: abort.signal })
+      .then((res) => (res.ok ? (res.json() as Promise<{ title: string | null }>) : null))
+      .then((body) => {
+        if (body?.title) {
+          setTitle(body.title);
+          setNameFromVideo(true);
+        }
+      })
+      .catch(() => undefined);
+    return () => abort.abort();
+  }, [youtubeId, nameEdited, startingName]);
 
   async function submit() {
     setTouched(true);
@@ -87,9 +113,13 @@ export function NewRoomForm({ cap }: { cap: number }) {
         placeholder="Friday film club"
         value={title}
         maxLength={80}
-        onChange={(e) => setTitle(e.target.value)}
+        onChange={(e) => {
+          setTitle(e.target.value);
+          setNameEdited(true);
+          setNameFromVideo(false);
+        }}
         error={titleError}
-        hint="Everyone in the room sees this."
+        hint={nameFromVideo ? 'Taken from the video. Change it if you like.' : 'Everyone in the room sees this.'}
         autoComplete="off"
       />
 

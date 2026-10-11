@@ -414,3 +414,12 @@ The free Supabase project `synvello` (reference `zkemdupefosllskayozr`, region u
 5. The security advisor reports only what the design intends: `app_config` and `room_secrets` have RLS with no policy (no client may read them); `profile_public` runs with its owner's rights (gap G24); and the RPCs are SECURITY DEFINER functions signed in users may call, which is how every client write happens.
 
 What the connector cannot set, the owner sets in the dashboard: the Google provider, the Site URL and redirect URLs, turning off email sign in and Realtime public access, the Edge Function secrets, and the `site_url` row once the web address is known.
+
+## Home screen app
+
+### Conveniences for the app on a phone's home screen
+Date: 11 October 2026 (DEFAULT, asked for as "ease of life" improvements)
+1. The rooms page has a "Join a room" box that takes a pasted room link or a bare room code. An app on the iPhone home screen has no address bar, and links tapped in Messages open in Safari rather than in the app, so without it there was no way into a room from the installed app. Only the room code and join key are kept from what is pasted, checked against the database's own patterns, so the box can only lead to a room on this site (`lib/room-link.ts`, test E15).
+2. The screen stays on while a room is open (the Screen Wake Lock API), because a phone that locks mid film drops voice and falls out of sync. Browsers release the lock when the page is hidden, so it is asked for again when the page returns. Where the browser has none, or refuses (low power mode), nothing changes.
+3. The rooms page suggests adding the app to the home screen once, until dismissed: the steps on iPhone, the browser's own install button in Chrome and Edge.
+4. A new room's name starts as "First name's room" and, while nobody has typed a name, takes a pasted YouTube video's title from YouTube's public oEmbed endpoint. The lookup runs on the server (`/api/youtube-title`), accepts only a valid video id, and keeps the page's Content Security Policy limited to this site.

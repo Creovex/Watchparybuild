@@ -310,3 +310,10 @@ Found in: Phase 6 (tied to G17 and G35)
 What is unknown: Whether the hosted Edge Functions list `chrome-extension://appcjgbhipnbklhodimgbmjhbncljoip` in `EXTENSION_ORIGINS`, and which id the Edge Add-ons store gives the published extension.
 Effect on the build: Until the origin is listed, `turn-credentials` and `livekit-token` refuse the panel's calls on a hosted project, so voice does not start in a streaming tab. A different Edge store id would need adding to `NEXT_PUBLIC_EXTENSION_IDS` and `EXTENSION_ORIGINS` as well.
 Next action: James sets `EXTENSION_ORIGINS` with the Edge Function secrets (Q3, G35); the store id is checked when publishing (G17).
+
+## G43: The timed comment check in E6 fails about one run in three
+Status: OPEN
+Found in: a full end to end run on 11 October 2026, after the web app was deployed
+What is unknown: Why the host sometimes sees no pop up for a timed comment it plays past. The guest is at the pinned position when it pins (checked by polling the guest's player), and the comment reaches the host's chat, but after the host jumps back three seconds and plays, the pop up does not appear within 8 seconds in roughly a third of runs. It fails the same way on the code before the iPhone changes of the same day, so it is not caused by them. Likely suspects: the host's jump and play being treated as a seek, so the crossing is not counted, or the stub player's position updates.
+Effect on the build: Acceptance criterion 11 (E6) passes only some of the time, so it is reported NOT DONE until this is found.
+Next action: The lead traces `passedComments` against the host's position samples during a failing run and fixes the cause, in the app or in the test.

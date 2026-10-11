@@ -19,7 +19,7 @@ export default async function NewRoomPage() {
     <div className="flex min-h-dvh flex-col">
       <SiteHeader profile={profile ? { display_name: profile.display_name, avatar_url: profile.avatar_url } : null} />
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:px-6 lg:py-12">
-        <NewRoomForm cap={cap} />
+        <NewRoomForm cap={cap} hostName={profile?.display_name} />
       </main>
       <SiteFooter />
     </div>

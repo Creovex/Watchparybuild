@@ -100,14 +100,14 @@ describe('server topic events', () => {
 describe('client topic events', () => {
   it('accept valid heartbeat, reaction and rtc events', () => {
     expect(ClientEvents.heartbeat.safeParse({ seq: 4, observed_position: 10, observed_server_ms: 1 }).success).toBe(true);
-    expect(ClientEvents.reaction.safeParse({ emoji: '🍿', position_sec: 3 }).success).toBe(true);
+    expect(ClientEvents.reaction.safeParse({ from: A, emoji: '🍿', position_sec: 3 }).success).toBe(true);
     expect(ClientEvents.rtc.safeParse({ from: A, to: null, kind: 'hello', payload: null }).success).toBe(true);
     expect(ClientEvents.rtc.safeParse({ from: A, to: B, kind: 'candidate', payload: { c: 1 } }).success).toBe(true);
   });
 
   it('refuse invalid events', () => {
     expect(ClientEvents.heartbeat.safeParse({ seq: -1, observed_position: 0, observed_server_ms: 0 }).success).toBe(false);
-    expect(ClientEvents.reaction.safeParse({ emoji: '💩', position_sec: 3 }).success).toBe(false);
+    expect(ClientEvents.reaction.safeParse({ from: A, emoji: '💩', position_sec: 3 }).success).toBe(false);
     expect(ClientEvents.rtc.safeParse({ from: A, to: null, kind: 'description', payload: {} }).success).toBe(false);
     expect(ClientEvents.rtc.safeParse({ from: 'me', to: null, kind: 'hello', payload: null }).success).toBe(false);
   });
@@ -122,7 +122,7 @@ describe('client topic events', () => {
     const logged: string[] = [];
     expect(parseEvent(ClientEvents.reaction, { emoji: 'x' }, (m) => logged.push(m))).toBeNull();
     expect(logged).toEqual(['dropped invalid event']);
-    expect(parseEvent(ClientEvents.reaction, { emoji: '🔥', position_sec: 1 })).toEqual({ emoji: '🔥', position_sec: 1 });
+    expect(parseEvent(ClientEvents.reaction, { from: A, emoji: '🔥', position_sec: 1 })).toEqual({ from: A, emoji: '🔥', position_sec: 1 });
     expect(parseEvent(ClientEvents.reaction, null)).toBeNull();
   });
 });

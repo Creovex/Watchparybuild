@@ -152,7 +152,10 @@ export const HeartbeatEvent = z.object({
 });
 export type HeartbeatEvent = z.infer<typeof HeartbeatEvent>;
 
+// `from` lets receivers apply the per sender limit. Like every client topic field it is not
+// verified by the server (gap G18).
 export const ReactionEvent = z.object({
+  from: Id,
   emoji: ReactionEmoji,
   position_sec: z.number().nonnegative(),
 });

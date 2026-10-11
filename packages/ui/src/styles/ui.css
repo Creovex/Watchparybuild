@@ -1,0 +1,225 @@
+/*
+ * Design tokens and base styles shared by the web app and the extension panel.
+ * Import after `@import "tailwindcss";` so the theme below replaces Tailwind's palette.
+ *
+ * Direction: the projection booth. Warm near black surfaces step up in lightness for elevation,
+ * warm off white text, one tungsten amber accent. Red means destructive or error, green means in
+ * sync. Every text pair below meets WCAG AA (Web Content Accessibility Guidelines, level AA)
+ * against every surface; see docs/decisions.md.
+ */
+
+@theme {
+  --color-*: initial;
+  --color-ink: #0f0d0c;
+  --color-surface-1: #171412;
+  --color-surface-2: #201c18;
+  --color-surface-3: #2a241f;
+  --color-line: #4a4038;
+  --color-line-strong: #6b5d50;
+  --color-text: #f4eee6;
+  --color-muted: #c9bdaf;
+  --color-faint: #a39686;
+  --color-amber: #ffb84d;
+  --color-amber-bright: #ffcd7a;
+  --color-amber-deep: #c98417;
+  --color-amber-ink: #1b1204;
+  --color-red: #ff7a6b;
+  --color-red-strong: #c2392f;
+  --color-green: #7fdca6;
+  --color-green-ink: #08140d;
+  --color-white: #ffffff;
+  --color-black: #000000;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  --font-display: var(--font-marquee), "Arial Narrow", "Roboto Condensed", sans-serif;
+  --font-sans: var(--font-grotesk), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-timecode), ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  /* Type scale: named steps only. Line heights are unitless. */
+  --text-label: 0.75rem;
+  --text-label--line-height: 1.2;
+  --text-label--letter-spacing: 0.08em;
+  --text-marquee: clamp(3rem, 8.5vw, 6.75rem);
+  --text-marquee--line-height: 0.9;
+  --text-marquee--letter-spacing: -0.01em;
+
+  --radius-ticket: 14px;
+
+  --ease-enter: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-exit: cubic-bezier(0.55, 0, 1, 0.45);
+  --ease-move: cubic-bezier(0.65, 0, 0.35, 1);
+
+  --animate-rise: rise 2000ms var(--ease-enter) forwards;
+  --animate-fade-out: fade-out 2000ms linear forwards;
+  --animate-sheet-in: sheet-in 320ms var(--ease-enter) both;
+  --animate-pop-in: pop-in 180ms var(--ease-enter) both;
+}
+
+/* Keyframes live outside the theme so they are always emitted, including for reduced motion. */
+@keyframes rise {
+  0% { transform: translate3d(0, 0, 0) scale(0.9); opacity: 0; }
+  12% { transform: translate3d(0, -6px, 0) scale(1); opacity: 1; }
+  75% { opacity: 1; }
+  100% { transform: translate3d(var(--drift-x, 0), -56px, 0) scale(1); opacity: 0; }
+}
+@keyframes fade-out {
+  0%, 70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes sheet-in {
+  from { transform: translate3d(0, 24px, 0); opacity: 0; }
+  to { transform: translate3d(0, 0, 0); opacity: 1; }
+}
+@keyframes pop-in {
+  from { transform: scale(0.96); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* Named stacking layers instead of escalating numbers. */
+:root {
+  --z-band: 10;
+  --z-sticky: 20;
+  --z-overlay: 30;
+  --z-sheet: 40;
+  --z-toast: 50;
+  color-scheme: dark;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+@layer base {
+  html {
+    background: var(--color-ink);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    min-height: 100dvh;
+    font-size: 1rem;
+    line-height: 1.55;
+  }
+
+  h1, h2, h3 {
+    text-wrap: balance;
+    line-height: 1.1;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  ::selection {
+    background: var(--color-amber);
+    color: var(--color-amber-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-amber);
+    outline-offset: 2px;
+  }
+
+  input, textarea, select {
+    /* 16 pixels stops iOS Safari zooming the page when a field gets focus. */
+    font-size: max(16px, 1em);
+  }
+
+  a {
+    text-underline-offset: 0.2em;
+    text-decoration-thickness: from-font;
+  }
+}
+
+@layer components {
+  /* Small uppercase labels set in the timecode face, like reel and slate markings. */
+  .slate {
+    font-family: var(--font-mono);
+    font-size: var(--text-label);
+    line-height: 1.2;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-faint);
+  }
+
+  .timecode {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+  }
+
+  .marquee {
+    font-family: var(--font-display);
+    font-weight: 800;
+    text-transform: uppercase;
+    line-height: 0.9;
+    letter-spacing: -0.005em;
+  }
+
+  /* The perforated edge of a ticket, drawn with two radial cut outs. */
+  .ticket {
+    --notch: 10px;
+    position: relative;
+    border-radius: var(--radius-ticket);
+    background:
+      radial-gradient(circle at 0 var(--notch-y, 50%), transparent var(--notch), var(--ticket-bg, var(--color-surface-2)) calc(var(--notch) + 0.5px)) left / 51% 100% no-repeat,
+      radial-gradient(circle at 100% var(--notch-y, 50%), transparent var(--notch), var(--ticket-bg, var(--color-surface-2)) calc(var(--notch) + 0.5px)) right / 51% 100% no-repeat;
+  }
+
+  .perforation {
+    border-top: 2px dashed var(--color-line);
+  }
+
+  .safe-bottom {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --animate-rise: fade-out 2000ms linear forwards;
+    --animate-sheet-in: none;
+    --animate-pop-in: none;
+  }
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes busy {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(300%); }
+}
+
+/* The countdown leader's hand sweeps once per second; it simply shows the number when motion is reduced. */
+.leader-hand {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: rotate(-90deg);
+  stroke-dashoffset: 100;
+  animation: leader-sweep 1000ms linear forwards;
+}
+@keyframes leader-sweep {
+  from { stroke-dashoffset: 100; }
+  to { stroke-dashoffset: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .leader-hand {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}

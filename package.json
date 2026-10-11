@@ -11,13 +11,18 @@
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
     "db:test": "supabase test db",
-    "db:concurrency": "deno run --allow-net --allow-env supabase/tests/concurrency.ts",
-    "fn:test": "deno test --allow-net --allow-env supabase/tests/functions",
+    "db:concurrency": "DENO_NO_PACKAGE_JSON=1 deno run --no-config --allow-net --allow-env supabase/tests/concurrency.ts",
+    "db:s6": "DENO_NO_PACKAGE_JSON=1 deno test --no-config --allow-net --allow-env supabase/tests/realtime/s6.test.ts",
+    "fn:test": "DENO_NO_PACKAGE_JSON=1 deno test --config supabase/tests/functions/deno.json --allow-net --allow-env --allow-read supabase/tests/functions",
     "e2e": "playwright test"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.0",
+    "@supabase/supabase-js": "^2.117.3",
+    "@types/node": "^26.6.5",
+    "@types/pg": "^8.23.1",
     "deno": "^2.9.6",
+    "pg": "^8.23.1",
     "supabase": "^2.120.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.3"

@@ -20,3 +20,4 @@ e2e/.auth/
 e2e/fixtures/*.webm
 .DS_Store
 .vercel/
+apps/web/public/e2e/

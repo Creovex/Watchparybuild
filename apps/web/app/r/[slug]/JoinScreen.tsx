@@ -98,9 +98,9 @@ export function JoinScreen({
         </Notice>
       ) : null}
 
-      {error ? (
+      {error || (full && !closed) ? (
         <div data-testid="join-error">
-          <Notice tone="error">{errorSentence(error, { roomCap })}</Notice>
+          <Notice tone="error">{errorSentence(error ?? 'room_full', { roomCap: roomCap ?? preview.room_cap })}</Notice>
         </div>
       ) : null}
 

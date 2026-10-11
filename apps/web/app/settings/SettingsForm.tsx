@@ -68,7 +68,7 @@ export function SettingsForm({
   return (
     <div className="flex flex-col gap-10">
       <div className="flex flex-col gap-2">
-        <p className="slate">{email}</p>
+        <p className="slate normal-case tracking-normal">{email}</p>
         <h1 className="marquee text-6xl">Settings</h1>
       </div>
 

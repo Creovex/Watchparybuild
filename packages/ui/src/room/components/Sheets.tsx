@@ -319,14 +319,17 @@ export function MemberMenu({
   const actions: MenuAction[] = [];
 
   if (isHost && member.state === 'removed') {
-    actions.push({
-      icon: 'userBack',
-      label: 'Allow back in',
-      onSelect: async () => {
-        if (await controller.moderate(member.user_id, 'allow_back')) toast(`${member.name} can join again.`, 'success');
-        onClose();
+    actions.push(
+      {
+        icon: 'userBack',
+        label: 'Allow back in',
+        onSelect: async () => {
+          if (await controller.moderate(member.user_id, 'allow_back')) toast(`${member.name} can join again.`, 'success');
+          onClose();
+        },
       },
-    });
+      { icon: 'ban', label: 'Ban from room', danger: true, onSelect: () => setConfirm('ban') },
+    );
   }
   if (isHost && member.state === 'joined') {
     actions.push(

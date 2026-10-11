@@ -122,7 +122,14 @@ export function MemberStrip({
   return (
     <div className={cx('flex items-center gap-3 overflow-x-auto px-3 py-2 no-scrollbar', className)} aria-label="People here" role="list">
       {here.map((m) => (
-        <div key={m.user_id} role="listitem" className="flex w-14 shrink-0 flex-col items-center gap-1">
+        <div
+          key={m.user_id}
+          role="listitem"
+          className="flex w-14 shrink-0 flex-col items-center gap-1"
+          data-testid="seat"
+          data-user={m.user_id}
+          data-speaking={speaking.has(m.user_id) ? 'true' : 'false'}
+        >
           <span className="relative">
             {cameras.has(m.user_id) ? (
               <VideoBubble userId={m.user_id} attach={attachVideo} speaking={speaking.has(m.user_id)} label={m.name} />

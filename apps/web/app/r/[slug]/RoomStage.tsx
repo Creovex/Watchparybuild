@@ -341,7 +341,12 @@ function RoomControls({
   const inVoice = voice.state !== 'idle' && voice.state !== 'failed';
   const [leaving, setLeaving] = useState(false);
   return (
-    <div className="flex items-center justify-around gap-1 lg:justify-center lg:gap-3" role="toolbar" aria-label="Room controls">
+    <div
+      className="flex items-center justify-around gap-1 lg:justify-center lg:gap-3"
+      role="toolbar"
+      aria-label="Room controls"
+      data-voice-state={voice.state}
+    >
       <MicButton voice={voice} onJoinVoice={onJoinVoice} />
       <IconButton
         icon={voice.local.cameraEnabled ? 'camera' : 'cameraOff'}

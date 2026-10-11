@@ -9,9 +9,7 @@ Status values: `OPEN`, `ACCEPTED` (James agreed to ship with the limitation; sti
 Questions are written here because most answers are account credentials, which belong in `.env.local` and the Supabase dashboard, never in a chat log. Each has a recommended option first.
 
 ### Q1: Supabase project for preview testing (gap G21)
-Create the free project `synvello-dev` and put its URL and anon key in `apps/web/.env.local`?
-1. Yes, James creates it and pastes the two values into `.env.local` (recommended: nothing else in the preview environment works without it).
-2. Use only the local stack on a machine with Docker for now.
+ANSWERED on 11 October 2026: the free project `synvello` (reference `zkemdupefosllskayozr`) exists. All 32 migrations and the four Edge Functions are applied to it; see "Hosted preview project" in `docs/decisions.md`. Its dashboard settings (Auth, Realtime public access, function secrets) are still to be set by hand.
 
 ### Q2: Google OAuth client (gap G21)
 OAuth means the open standard Google sign in uses to hand a signed identity to the app.
@@ -183,9 +181,9 @@ Next action: James decides ACCEPTED, or asks for the RPC to require a header tha
 ## G21: Accounts and keys not provided
 Status: OPEN
 Found in: Phase 0
-What is unknown: The Supabase project, Google OAuth client, LiveKit Cloud project and Cloudflare TURN key.
-Effect on the build: Nothing that needs a hosted service has run: Google sign in, server voice, TURN relay.
-Next action: James answers Q1 to Q3.
+What is unknown: The Google OAuth client, LiveKit Cloud project and Cloudflare TURN key. The Supabase project exists (Q1).
+Effect on the build: Google sign in, server voice and TURN relay have not run on a hosted service. Until a Cloudflare key is set, the hosted `turn-credentials` function can run with `TURN_TEST_MODE=1`, which gives STUN only, so mesh voice connects only where a direct path exists.
+Next action: James answers Q2 and Q3.
 
 ## G22: Fixed preview domain
 Status: OPEN
@@ -219,8 +217,8 @@ Next action: James decides ACCEPTED, or asks for the key on every join, in which
 Status: OPEN
 Found in: spike S6
 What is unknown: Hosted Supabase projects have a Realtime setting, "Allow public access", that must be turned off before Realtime refuses every channel that is not private. The local stack has no such setting and accepts public channels. S6 showed that a public channel with a room topic's name receives none of the database's private broadcasts, so room data does not leak, but while the setting is on anyone holding the project's public anon key can open public channels and spend the project's message quota.
-Effect on the build: None on the local stack. On `synvello-dev` and production, public channels stay usable until the setting is turned off.
-Next action: James turns off "Allow public access" in the Realtime settings of `synvello-dev` when creating it (Q1), and of the production project.
+Effect on the build: None on the local stack. On `synvello` and production, public channels stay usable until the setting is turned off.
+Next action: James turns off "Allow public access" in the Realtime settings of `synvello` (Q1) and of the production project.
 
 ## G30: Voice credentials need the engine session
 Status: OPEN
@@ -262,7 +260,7 @@ Status: OPEN
 Found in: Phase 5
 What is unknown: The prompt says the functions answer preflights for the site URL, the preview domain and the extension origin, but its table of environment variables has none the functions can read for them.
 Effect on the build: DEFAULT taken: the functions read `SITE_URL`, `PREVIEW_URL` and `EXTENSION_ORIGINS` (comma separated `chrome-extension://<id>` origins) from their secrets. The local stack sets `SITE_URL` in `supabase/config.toml`. `.env.example` and the hosted projects' Edge Function secrets do not list them yet, so a hosted function answers preflights for none of them until they are set.
-Next action: The lead adds the three to `.env.example`; James sets them as Edge Function secrets on `synvello-dev` together with the LiveKit and Cloudflare secrets (Q3).
+Next action: The lead adds the three to `.env.example`; James sets them as Edge Function secrets on `synvello` together with the LiveKit and Cloudflare secrets (Q3).
 
 ## G42: Handing over to the extension signs the browser's other tabs out
 Status: OPEN

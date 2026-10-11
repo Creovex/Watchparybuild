@@ -76,7 +76,7 @@ Then load `apps/extension/dist` unpacked in `chrome://extensions` or `edge://ext
 
 ## Deploying the preview
 
-1. **Supabase.** Create the free project `synvello-dev`. Then:
+1. **Supabase.** The preview project is `synvello` (reference `zkemdupefosllskayozr`); its database and functions are already applied (see `docs/decisions.md`, "Hosted preview project"). For another project, or after changing a migration or function:
    ```sh
    pnpm exec supabase link --project-ref <project ref>
    pnpm exec supabase db push

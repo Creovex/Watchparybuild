@@ -400,3 +400,17 @@ Checked on npm on 11 October 2026 for existence and licence.
 | `@fontsource-variable/hanken-grotesk` | OFL | Reading face for the panel |
 | `@fontsource-variable/jetbrains-mono` | OFL | Timecode face for the panel |
 | `@playwright/test` in `apps/extension` | Apache | The optional browser checks for the extension |
+
+## Hosted preview project
+
+### How `synvello` was set up
+Date: 11 October 2026
+The free Supabase project `synvello` (reference `zkemdupefosllskayozr`, region us-east-1) was created by the owner. The build applied it through the Supabase connector instead of the command line tool, because the build container has no access token for the command line tool.
+
+1. Each of the 32 migration files was applied unchanged, in order, under its file name. The connector records its own timestamp as the version, so the versions in `supabase_migrations.schema_migrations` were then set to the file versions. `supabase db push` from a linked checkout therefore sees the project as up to date.
+2. Every function body on the project was compared with the migration files by MD5 (Message Digest 5) hash of the source: all 40 match. RLS is on for all 8 tables, the 8 table policies and 2 Realtime policies exist, and the 3 scheduled jobs are registered.
+3. The four Edge Functions were deployed from `supabase/functions` with their `_shared` files and `deno.json`, with JWT verification on, as `supabase functions deploy` does by default. Each answers a request carrying only the anon key with `unauthorized`, and a preflight from an unknown origin with 403.
+4. Signed out requests were checked against the project: reading `rooms` and calling `server_time` are both refused.
+5. The security advisor reports only what the design intends: `app_config` and `room_secrets` have RLS with no policy (no client may read them); `profile_public` runs with its owner's rights (gap G24); and the RPCs are SECURITY DEFINER functions signed in users may call, which is how every client write happens.
+
+What the connector cannot set, the owner sets in the dashboard: the Google provider, the Site URL and redirect URLs, turning off email sign in and Realtime public access, the Edge Function secrets, and the `site_url` row once the web address is known.

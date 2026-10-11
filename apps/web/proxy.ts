@@ -25,9 +25,9 @@ function contentSecurityPolicy(nonce: string): string {
   const supabase = origins(process.env.NEXT_PUBLIC_SUPABASE_URL, true);
   const livekit = origins(process.env.LIVEKIT_URL, true);
   const functions = origins(process.env.NEXT_PUBLIC_FUNCTIONS_URL, false);
-  // The YouTube IFrame Player API loads its widget script from www.youtube.com and its player from
-  // the same host; both are recorded in docs/decisions.md.
-  const youtube = ['https://www.youtube.com', 'https://s.ytimg.com'];
+  // The YouTube IFrame Player API loads its widget script and its player frame from www.youtube.com
+  // only (checked in the browser console, recorded in docs/decisions.md).
+  const youtube = ['https://www.youtube.com'];
   const directives: Record<string, string[]> = {
     'default-src': ["'self'"],
     'script-src': ["'self'", `'nonce-${nonce}'`, "'strict-dynamic'", ...youtube, ...(dev ? ["'unsafe-eval'"] : [])],

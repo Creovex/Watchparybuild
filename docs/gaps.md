@@ -36,6 +36,10 @@ Spikes S1 to S5 and the device matrix need two subscriptions each to Netflix, Pr
 1. Keep sign in required for guests (recommended: it is the current DEFAULT and the database rules depend on a signed in user).
 2. Allow anonymous guests, which needs Supabase anonymous sign in and a review of every policy.
 
+### Q7: Accept known limits for testing (gaps G13, G15, G18, G20)
+1. Mark G13 (movie audio reaching the microphone), G15 (videos that block embedding), G18 (client topic senders not verified) and G20 (the moderate RPC callable without the Edge Function) ACCEPTED for testing and revisit before launch (recommended: none affects two people testing, and each has a tip, a sentence or a later fix ready).
+2. Fix G18 and G20 before testing starts.
+
 ## G1: Seek method for paid sources
 Status: OPEN
 Found in: build prompt
@@ -243,8 +247,8 @@ Next action: James decides ACCEPTED, or asks for a larger capture in server voic
 Status: OPEN
 Found in: Phase 5
 What is unknown: In the sandbox this build ran in, outgoing HTTPS passes through a proxy with its own certificate. The local edge runtime runs in Docker, does not trust that certificate and cannot download the functions' npm packages, so `supabase functions serve` answers every call with a boot error. It is not known whether this happens on James's machine; it should not.
-Effect on the build: The functions were checked instead by running each `index.ts` with the repository's Deno against the local stack: preflights, `unauthorized`, STUN in test mode, `not_member`, `wrong_voice_mode`, the real `moderate` RPC and `delete-account` all answered as specified. Playwright E7 and E13, which need the functions served by the local stack, cannot run in that sandbox. Stopping `functions serve` also removed the stack's edge runtime container; `supabase stop` then `supabase start` brings it back.
-Next action: Run `pnpm exec supabase functions serve` and E7 and E13 on a machine without that proxy, and record the result here.
+Effect on the build: The functions were checked instead by running each `index.ts` with the repository's Deno against the local stack: preflights, `unauthorized`, STUN in test mode, `not_member`, `wrong_voice_mode`, the real `moderate` RPC and `delete-account` all answered as specified. `pnpm fn:serve` (`supabase/tests/functions/serve-local.ts`) now serves all four handlers from one Deno process, and with `E2E_FUNCTIONS_URL` pointing at it all fourteen Playwright tests passed in the sandbox on 11 October 2026, E7, E13 and E14 included. What stays unproven is the edge runtime itself serving them. Stopping `functions serve` also removed the stack's edge runtime container; `supabase stop` then `supabase start` brings it back.
+Next action: Run `pnpm exec supabase functions serve` and the Playwright suite without `E2E_FUNCTIONS_URL` on a machine without that proxy, and record the result here.
 
 ## G34: How many LiveKit retries
 Status: OPEN
@@ -259,3 +263,10 @@ Found in: Phase 5
 What is unknown: The prompt says the functions answer preflights for the site URL, the preview domain and the extension origin, but its table of environment variables has none the functions can read for them.
 Effect on the build: DEFAULT taken: the functions read `SITE_URL`, `PREVIEW_URL` and `EXTENSION_ORIGINS` (comma separated `chrome-extension://<id>` origins) from their secrets. The local stack sets `SITE_URL` in `supabase/config.toml`. `.env.example` and the hosted projects' Edge Function secrets do not list them yet, so a hosted function answers preflights for none of them until they are set.
 Next action: The lead adds the three to `.env.example`; James sets them as Edge Function secrets on `watchparty-dev` together with the LiveKit and Cloudflare secrets (Q3).
+
+## G42: Handing over to the extension signs the browser's other tabs out
+Status: OPEN
+Found in: Phase 6
+What is unknown: Whether James accepts that, during a handover, the app's other tabs in the same browser lose their session. The web app keeps the session in cookies every tab of the site shares, and the prompt requires the room page to remove it from its storage without signing out, because only one holder may refresh a session.
+Effect on the build: While the extension holds the room, other tabs of the app in that browser behave as signed out until "Bring it back here" or closing the streaming tab returns the session. The room itself is unaffected.
+Next action: James decides ACCEPTED, or asks for the extension to sign in with its own session instead of taking the page's.

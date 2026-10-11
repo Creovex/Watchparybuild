@@ -1,6 +1,6 @@
 export * from './types';
 export { createVoiceClient, type VoiceDeps } from './factory';
-export { MeshVoice, DISCONNECTED_RESTART_MS, type MeshVoiceDeps } from './mesh';
+export { MeshVoice, DISCONNECTED_RESTART_MS, PRESENCE_CLOSE_GRACE_MS, type MeshVoiceDeps } from './mesh';
 export { ServerVoice, diffSpeakers, type LiveKitModule, type ServerVoiceDeps } from './server';
 export {
   CAMERA_CONSTRAINTS,

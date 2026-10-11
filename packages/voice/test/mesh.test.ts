@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { RtcEvent } from '@watchparty/sync-core';
 import { CAMERA_CONSTRAINTS, MIC_CONSTRAINTS } from '../src/media';
-import { DISCONNECTED_RESTART_MS, MeshVoice } from '../src/mesh';
+import { DISCONNECTED_RESTART_MS, MeshVoice, PRESENCE_CLOSE_GRACE_MS } from '../src/mesh';
 import { RECONNECT_WINDOW_MS } from '../src/reconnect';
 import { VoiceError, type VoiceState, type VoiceTracks } from '../src/types';
 import {
@@ -269,8 +269,24 @@ describe('handshake', () => {
       { user_id: A, voice: 'live' },
       { user_id: B, voice: 'off' },
     ]);
+    // Presence flickers, so the close waits for the grace period.
+    expect(a.pcs[0]?.closed).toBe(false);
+    w.clock.advance(PRESENCE_CLOSE_GRACE_MS);
     expect(a.pcs[0]?.closed).toBe(true);
     expect(a.tracks.get(B)).toEqual({});
+  });
+
+  it('keeps the connection when presence only flickers', async () => {
+    const { w, a } = await connectedPair();
+    w.presence.set([{ user_id: A, voice: 'live' }]);
+    w.clock.advance(PRESENCE_CLOSE_GRACE_MS / 2);
+    w.presence.set([
+      { user_id: A, voice: 'live' },
+      { user_id: B, voice: 'live' },
+    ]);
+    w.clock.advance(PRESENCE_CLOSE_GRACE_MS);
+    expect(a.pcs[0]?.closed).toBe(false);
+    expect(a.pcs).toHaveLength(1);
   });
 
   it('a member who rejoins voice gets a fresh connection', async () => {

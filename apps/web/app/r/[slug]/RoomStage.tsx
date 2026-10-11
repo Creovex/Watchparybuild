@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { isPaidSource, SOURCE_LABEL, type MessageRow } from '@watchparty/sync-core';
 import { cx, Icon, IconButton, Sheet, Button, useToast } from '@watchparty/ui';
@@ -47,6 +47,10 @@ export function RoomStage({ controller, me, onRejoin }: { controller: RoomContro
   const voice = useRoomVoice(controller);
   const [duckLevel, setDuckLevel] = useState<number | null>(me.duckLevel);
   useDucking(controller, voice, duckLevel);
+  // Stable callbacks: a new function each render would detach and re-attach every member's media.
+  const voiceAttach = voice.attach;
+  const attachAudio = useCallback((id: string, el: HTMLMediaElement) => voiceAttach(id, 'audio', el), [voiceAttach]);
+  const attachVideo = useCallback((id: string, el: HTMLMediaElement) => voiceAttach(id, 'video', el), [voiceAttach]);
 
   const [tab, setTab] = useState<Tab>('chat');
   const [sheet, setSheet] = useState<'host' | 'mine' | 'voice' | 'chat' | null>(null);
@@ -159,7 +163,7 @@ export function RoomStage({ controller, me, onRejoin }: { controller: RoomContro
         }}
       />
       <ReportSheet target={report} onClose={() => setReport(null)} />
-      <VoiceAudio userIds={othersInVoice} attach={(id, el) => voice.attach(id, 'audio', el)} />
+      <VoiceAudio userIds={othersInVoice} trackVersions={voice.trackVersions} attach={attachAudio} />
     </>
   );
 
@@ -240,7 +244,13 @@ export function RoomStage({ controller, me, onRejoin }: { controller: RoomContro
             <CueScreen compact overlay={overlayBand} />
           )}
           <SyncStatus />
-          <MemberStrip speaking={voice.speaking} cameras={voice.cameras} attachVideo={(id, el) => voice.attach(id, 'video', el)} className="shrink-0" />
+          <MemberStrip
+            speaking={voice.speaking}
+            cameras={voice.cameras}
+            trackVersions={voice.trackVersions}
+            attachVideo={attachVideo}
+            className="shrink-0"
+          />
           {desktop ? (
             <div className="relative mx-auto mt-auto w-full max-w-3xl px-3 pb-4">
               {trayOpen ? (

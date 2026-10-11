@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Ducker, type PresencePayload } from '@watchparty/sync-core';
 import {
   createVoiceClient,
+  VoiceError,
   type LocalMedia,
   type RoomVoiceClient,
   type VoiceErrorCode,
@@ -21,6 +22,8 @@ export interface RoomVoice {
   local: LocalMedia;
   speaking: Set<string>;
   cameras: Set<string>;
+  /** Bumps each time a member's tracks change, so elements re-attach to the new tracks. */
+  trackVersions: Record<string, number>;
   error: VoiceErrorCode | null;
   /** Must be called from the "Join voice" tap: it prepares audio before any await. */
   join(): void;
@@ -43,6 +46,7 @@ export function useRoomVoice(controller: RoomController): RoomVoice {
   const [local, setLocal] = useState<LocalMedia>(NO_MEDIA);
   const [speaking, setSpeaking] = useState<Set<string>>(() => new Set());
   const [cameras, setCameras] = useState<Set<string>>(() => new Set());
+  const [trackVersions, setTrackVersions] = useState<Record<string, number>>({});
   const [error, setError] = useState<VoiceErrorCode | null>(null);
   const roomId = room?.id ?? null;
   const voiceMode = room?.voice_mode ?? 'mesh';
@@ -61,12 +65,12 @@ export function useRoomVoice(controller: RoomController): RoomVoice {
     const voice = createVoiceClient(voiceMode, {
       getIceServers: async () => {
         const res = await controller.api.turnCredentials(session.roomId, session.engineSession);
-        if (!res.ok) throw Object.assign(new Error(res.code), { code: res.code });
+        if (!res.ok) throw new VoiceError(res.code);
         return res.data.iceServers as RTCIceServer[];
       },
       getToken: async () => {
         const res = await controller.api.livekitToken(session.roomId, session.engineSession);
-        if (!res.ok) throw Object.assign(new Error(res.code), { code: res.code });
+        if (!res.ok) throw new VoiceError(res.code);
         return res.data;
       },
       signalling: {
@@ -94,6 +98,8 @@ export function useRoomVoice(controller: RoomController): RoomVoice {
       for (const cb of speakingListeners.current) cb(userId, isSpeaking);
     });
     voice.onTracks((userId, tracks) => {
+      // attachMedia binds the tracks present at call time; a new version makes elements bind again.
+      setTrackVersions((current) => ({ ...current, [userId]: (current[userId] ?? 0) + 1 }));
       setCameras((current) => {
         const next = new Set(current);
         if (tracks.video) next.add(userId);
@@ -145,6 +151,7 @@ export function useRoomVoice(controller: RoomController): RoomVoice {
     await clientRef.current?.leave();
     setSpeaking(new Set());
     setCameras(new Set());
+    setTrackVersions({});
   }, []);
 
   const setMic = useCallback(async (on: boolean) => {
@@ -165,8 +172,8 @@ export function useRoomVoice(controller: RoomController): RoomVoice {
   }, []);
 
   return useMemo(
-    () => ({ state, local, speaking, cameras, error, join, leave, setMic, setCamera, attach, onSpeaking }),
-    [state, local, speaking, cameras, error, join, leave, setMic, setCamera, attach, onSpeaking],
+    () => ({ state, local, speaking, cameras, trackVersions, error, join, leave, setMic, setCamera, attach, onSpeaking }),
+    [state, local, speaking, cameras, trackVersions, error, join, leave, setMic, setCamera, attach, onSpeaking],
   );
 }
 

@@ -54,6 +54,13 @@ export interface MeshVoiceDeps extends VoiceBaseDeps {
 /** After a connection reports `disconnected`, wait this long for it to recover before restarting ICE. */
 export const DISCONNECTED_RESTART_MS = 2_000;
 
+/**
+ * Presence is for display, and it flickers: a member who re-tracks their presence can briefly look
+ * absent. A connection is closed for presence only when the member still shows out of voice after
+ * this long; a member who really leaves also closes their side, which ends the connection anyway.
+ */
+export const PRESENCE_CLOSE_GRACE_MS = 3_000;
+
 type PeerStatus = 'pending' | 'connected' | 'dropped';
 
 interface Peer {
@@ -432,14 +439,32 @@ export class MeshVoice extends VoiceBase implements RoomVoiceClient {
       });
       if (isInVoice(previous) && !isInVoice(now)) this.sessions.delete(id);
       if (decision === 'close') {
-        const peer = this.peers.get(id);
-        if (peer) this.closePeer(peer, false);
+        this.schedulePresenceClose(id);
       } else if (decision === 'initiate') {
         this.createPeer(id, this.newId());
       }
     }
     this.presenceVoices = current;
     this.recompute();
+  }
+
+  private readonly presenceCloseTimers = new Map<string, unknown>();
+
+  private schedulePresenceClose(id: string): void {
+    if (this.presenceCloseTimers.has(id)) return;
+    const peer = this.peers.get(id);
+    if (!peer) return;
+    const timer = this.clock.setTimeout(() => {
+      this.presenceCloseTimers.delete(id);
+      const stillOut = !isInVoice(this.presenceVoices.get(id) ?? 'absent');
+      if (stillOut && this.peers.get(id) === peer) this.closePeer(peer, false);
+    }, PRESENCE_CLOSE_GRACE_MS);
+    this.presenceCloseTimers.set(id, timer);
+  }
+
+  private cancelPresenceCloses(): void {
+    for (const timer of this.presenceCloseTimers.values()) this.clock.clearTimeout(timer);
+    this.presenceCloseTimers.clear();
   }
 
   private send(event: RtcEvent): void {
@@ -745,6 +770,7 @@ export class MeshVoice extends VoiceBase implements RoomVoiceClient {
   private teardown(): void {
     const me = this.me;
     this.ready = false;
+    this.cancelPresenceCloses();
     this.window.end();
     for (const off of this.unsubscribers.splice(0)) {
       try {

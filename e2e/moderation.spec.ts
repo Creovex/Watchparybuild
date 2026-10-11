@@ -1,9 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
-import { clientFor, closeAll, createRoom, enterRoom, newUser, rpc, signedIn, sql, stack, type Member } from './helpers';
+import { callFunction, clientFor, closeAll, createRoom, enterRoom, newUser, rpc, signedIn, sql, type Member } from './helpers';
 
 async function openMemberMenu(page: Page, name: string) {
   await page.getByRole('tab', { name: /People/ }).click();
   await page.getByRole('button', { name: `Options for ${name}` }).click();
+}
+
+async function showChat(page: Page) {
+  await page.getByRole('tab', { name: 'Chat' }).click();
 }
 
 async function confirmIn(page: Page, action: string, confirm: string) {
@@ -129,13 +133,7 @@ test('E13: lock refuses a new user and readmits a former member; a muted member 
       [room.id, formerUser.id],
     );
     const engine_session = sessionRow!.engine_session;
-    const formerClient = await clientFor(formerUser);
-    const token = (await formerClient.auth.getSession()).data.session!.access_token;
-    const response = await fetch(`${stack().url}/functions/v1/turn-credentials`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, apikey: stack().anonKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ room_id: room.id, engine_session }),
-    });
+    const response = await callFunction(await clientFor(formerUser), 'turn-credentials', { room_id: room.id, engine_session });
     expect(response.status).toBe(403);
     expect(await response.json()).toMatchObject({ ok: false, code: 'voice_muted' });
 
@@ -172,10 +170,10 @@ test('E14: host transfer, mute, key rotation, remove and allow back, delete, rep
     // Mute then unmute C.
     await openMemberMenu(a.page, 'Sam Okafor');
     await a.page.getByRole('button', { name: 'Mute voice' }).click();
-    await expect(b.page.locator(`[data-testid=seat][data-user="${cUser.id}"]`).getByTitle('Muted by host')).toBeVisible();
+    await expect(b.page.locator(`[data-testid=seat][data-user="${cUser.id}"]`).getByRole('img', { name: 'Muted by host' })).toBeVisible();
     await openMemberMenu(a.page, 'Sam Okafor');
     await a.page.getByRole('button', { name: 'Unmute voice' }).click();
-    await expect(b.page.locator(`[data-testid=seat][data-user="${cUser.id}"]`).getByTitle('Muted by host')).toBeHidden();
+    await expect(b.page.locator(`[data-testid=seat][data-user="${cUser.id}"]`).getByRole('img', { name: 'Muted by host' })).toBeHidden();
 
     // Rotate the key: the old private link is refused for someone new.
     await roomSettings(a.page);
@@ -202,6 +200,8 @@ test('E14: host transfer, mute, key rotation, remove and allow back, delete, rep
     await enterRoom(c, `${newLink.pathname}${newLink.hash}`);
 
     // C sends and deletes a message.
+    await showChat(a.page);
+    await showChat(b.page);
     await c.page.getByTestId('chat-input').fill('This one goes');
     await c.page.getByTestId('chat-input').press('Enter');
     await expect(a.page.getByTestId('chat-log').getByText('This one goes')).toBeVisible();
@@ -215,6 +215,7 @@ test('E14: host transfer, mute, key rotation, remove and allow back, delete, rep
     await expect(b.page.getByTestId('chat-log').getByText('Still here')).toBeVisible();
     await openMemberMenu(b.page, 'Sam Okafor');
     await b.page.getByRole('button', { name: 'Report Sam Okafor' }).click();
+    await showChat(a.page);
     await b.page.getByText('Spam', { exact: true }).click();
     await b.page.getByRole('button', { name: 'Send report' }).click();
     await expect(b.page.getByText('Report sent. Thank you.')).toBeVisible();
@@ -228,9 +229,8 @@ test('E14: host transfer, mute, key rotation, remove and allow back, delete, rep
     await expect(b.page.getByTestId('room-fatal')).toContainText('You opened this room somewhere else.', { timeout: 30_000 });
 
     // C deletes their account: their messages show "Deleted user".
-    const cClient = await clientFor(cUser);
-    const { error } = await cClient.functions.invoke('delete-account', { body: {} });
-    expect(error).toBeNull();
+    const deleted = await callFunction(await clientFor(cUser), 'delete-account', {});
+    expect(await deleted.json()).toMatchObject({ ok: true });
     await a.page.reload();
     await expect(a.page.getByTestId('chat-log').getByText('Deleted user').first()).toBeVisible({ timeout: 20_000 });
   } finally {

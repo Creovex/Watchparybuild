@@ -20,6 +20,15 @@ export default async function globalSetup() {
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, JSON.stringify({ url: env.API_URL, anonKey: env.ANON_KEY, serviceKey: env.SERVICE_ROLE_KEY }));
 
+  const tone = join(root, 'e2e', '.auth', 'tone.wav');
+  if (!existsSync(tone)) {
+    // A steady tone for the fake microphone (E7): Chrome's own fake device only beeps briefly.
+    execFileSync('ffmpeg', [
+      '-loglevel', 'error', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000:duration=20',
+      '-af', 'volume=0.5', '-ac', '1', '-y', tone,
+    ]);
+  }
+
   const video = join(root, 'apps', 'web', 'public', 'e2e', 'test.webm');
   if (!existsSync(video)) {
     mkdirSync(dirname(video), { recursive: true });

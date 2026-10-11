@@ -14,7 +14,8 @@
     "db:concurrency": "DENO_NO_PACKAGE_JSON=1 deno run --no-config --allow-net --allow-env supabase/tests/concurrency.ts",
     "db:s6": "DENO_NO_PACKAGE_JSON=1 deno test --no-config --allow-net --allow-env supabase/tests/realtime/s6.test.ts",
     "fn:test": "DENO_NO_PACKAGE_JSON=1 deno test --config supabase/tests/functions/deno.json --allow-net --allow-env --allow-read supabase/tests/functions",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "fn:serve": "DENO_NO_PACKAGE_JSON=1 deno run --config supabase/tests/functions/deno.json --allow-net --allow-env --allow-read supabase/tests/functions/serve-local.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.0",

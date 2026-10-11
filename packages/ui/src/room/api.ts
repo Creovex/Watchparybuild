@@ -29,8 +29,19 @@ export interface RoomSettings {
 
 const RoomLink = z.object({ room_link: z.string() });
 
+export interface RoomApiOptions {
+  /**
+   * Where Edge Functions are served when not at the project's own /functions/v1 path: only the local
+   * functions server used where the local stack's edge runtime cannot run (gap G33).
+   */
+  functionsUrl?: string;
+}
+
 export class RoomApi {
-  constructor(private readonly supabase: SupabaseClient) {}
+  constructor(
+    private readonly supabase: SupabaseClient,
+    private readonly options: RoomApiOptions = {},
+  ) {}
 
   private async rpc<T>(name: string, args: Record<string, unknown>, schema?: z.ZodType<T>): Promise<Result<T>> {
     try {
@@ -43,6 +54,7 @@ export class RoomApi {
   }
 
   private async fn<T>(name: string, body: Record<string, unknown>, schema?: z.ZodType<T>): Promise<Result<T>> {
+    if (this.options.functionsUrl) return this.fnDirect(name, body, schema);
     try {
       const { data, error } = await this.supabase.functions.invoke(name, { body });
       if (error) {
@@ -58,6 +70,22 @@ export class RoomApi {
         return { ok: false, code: 'internal' };
       }
       return toResult(data, schema);
+    } catch {
+      return { ok: false, code: 'internal' };
+    }
+  }
+
+  private async fnDirect<T>(name: string, body: Record<string, unknown>, schema?: z.ZodType<T>): Promise<Result<T>> {
+    try {
+      const { data } = await this.supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) return { ok: false, code: 'unauthorized' };
+      const res = await fetch(`${this.options.functionsUrl!.replace(/\/$/, '')}/${name}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return toResult(await res.json(), schema);
     } catch {
       return { ok: false, code: 'internal' };
     }

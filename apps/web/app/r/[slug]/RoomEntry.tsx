@@ -7,6 +7,7 @@ import { RoomController, useRoom, type Me } from '@watchparty/ui/room';
 import { Wordmark } from '@/components/Wordmark';
 import { getBrowserClient } from '@/lib/supabase/client';
 import { workerTicker } from '@/lib/ticker';
+import { FUNCTIONS_URL } from '@/lib/env';
 import { captureJoinKey, readJoinKey } from './key';
 import { FatalScreen, JoinScreen, SignedOutGate } from './JoinScreen';
 import { RoomStage } from './RoomStage';
@@ -32,7 +33,18 @@ export function RoomEntry({ slug, me }: { slug: string; me: RoomMe | null }) {
   const [joining, setJoining] = useState(false);
   const controllerRef = useRef<RoomController | null>(null);
 
-  useLayoutEffect(() => captureJoinKey(slug), [slug]);
+  useLayoutEffect(() => {
+    captureJoinKey(slug);
+    // A link pasted into a room page that is already open only changes the fragment; treat it as a
+    // fresh visit so a new key is used even after the room ended or refused this member.
+    const onHash = () => {
+      const hadKey = /(^|[#&])k=/.test(window.location.hash);
+      captureJoinKey(slug);
+      if (hadKey) window.location.reload();
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, [slug]);
 
   const join = useCallback(
     async (source: Source | null) => {
@@ -45,6 +57,7 @@ export function RoomEntry({ slug, me }: { slug: string; me: RoomMe | null }) {
         device: deviceKind(window.matchMedia?.bind(window)),
         engine: 'page',
         createTicker: workerTicker,
+        functionsUrl: FUNCTIONS_URL || undefined,
         log: (event, detail) => console.warn(`[room] ${event}`, detail),
       });
       const res = await controller.join(slug, readJoinKey(slug), syncModeFor(source ?? 'youtube'));

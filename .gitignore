@@ -21,3 +21,4 @@ e2e/fixtures/*.webm
 .DS_Store
 .vercel/
 apps/web/public/e2e/
+apps/web/next-env.d.ts

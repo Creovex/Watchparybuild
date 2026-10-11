@@ -106,12 +106,14 @@ function MemberRowItem({ member, speaking, onMenu }: { member: MemberView; speak
 export function MemberStrip({
   speaking,
   cameras,
+  trackVersions = {},
   attachVideo,
   className,
 }: {
   speaking: Set<string>;
   /** Members whose camera is on. */
   cameras: Set<string>;
+  trackVersions?: Record<string, number>;
   attachVideo: (userId: string, el: HTMLMediaElement) => () => void;
   className?: string;
 }) {
@@ -132,7 +134,13 @@ export function MemberStrip({
         >
           <span className="relative">
             {cameras.has(m.user_id) ? (
-              <VideoBubble userId={m.user_id} attach={attachVideo} speaking={speaking.has(m.user_id)} label={m.name} />
+              <VideoBubble
+                userId={m.user_id}
+                version={trackVersions[m.user_id] ?? 0}
+                attach={attachVideo}
+                speaking={speaking.has(m.user_id)}
+                label={m.name}
+              />
             ) : (
               <Avatar name={m.name} src={m.avatar_url} size={44} speaking={speaking.has(m.user_id)} />
             )}
@@ -166,11 +174,13 @@ export function MemberStrip({
 
 function VideoBubble({
   userId,
+  version,
   attach,
   speaking,
   label,
 }: {
   userId: string;
+  version: number;
   attach: (userId: string, el: HTMLMediaElement) => () => void;
   speaking: boolean;
   label: string;
@@ -180,7 +190,7 @@ function VideoBubble({
     const el = ref.current;
     if (!el) return;
     return attach(userId, el);
-  }, [attach, userId]);
+  }, [attach, userId, version]);
   return (
     <video
       ref={ref}
@@ -194,22 +204,38 @@ function VideoBubble({
 }
 
 /** Plays every other member's voice. Hidden: the speaking rings and mute marks are the visible part. */
-export function VoiceAudio({ userIds, attach }: { userIds: string[]; attach: (userId: string, el: HTMLMediaElement) => () => void }) {
+export function VoiceAudio({
+  userIds,
+  attach,
+  trackVersions = {},
+}: {
+  userIds: string[];
+  attach: (userId: string, el: HTMLMediaElement) => () => void;
+  trackVersions?: Record<string, number>;
+}) {
   return (
     <div className="hidden" aria-hidden="true">
       {userIds.map((id) => (
-        <RemoteAudio key={id} userId={id} attach={attach} />
+        <RemoteAudio key={id} userId={id} version={trackVersions[id] ?? 0} attach={attach} />
       ))}
     </div>
   );
 }
 
-function RemoteAudio({ userId, attach }: { userId: string; attach: (userId: string, el: HTMLMediaElement) => () => void }) {
+function RemoteAudio({
+  userId,
+  version,
+  attach,
+}: {
+  userId: string;
+  version: number;
+  attach: (userId: string, el: HTMLMediaElement) => () => void;
+}) {
   const ref = useRef<HTMLAudioElement>(null);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     return attach(userId, el);
-  }, [attach, userId]);
+  }, [attach, userId, version]);
   return <audio ref={ref} autoPlay playsInline />;
 }

@@ -10,3 +10,5 @@ export const EXTENSION_IDS = (process.env.NEXT_PUBLIC_EXTENSION_IDS || '')
   .filter(Boolean);
 /** Test builds only: lets end to end tests swap the YouTube player for a local video. */
 export const E2E_STUB = process.env.NEXT_PUBLIC_E2E === '1';
+/** Local functions server only (gap G33); unset in every hosted environment. */
+export const FUNCTIONS_URL = process.env.NEXT_PUBLIC_FUNCTIONS_URL || '';

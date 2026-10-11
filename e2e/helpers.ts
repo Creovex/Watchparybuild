@@ -19,6 +19,20 @@ export function stack(): Stack {
   return cached;
 }
 
+/** Where Edge Functions answer: the local stack's gateway, or the local functions server (gap G33). */
+export function functionsUrl(): string {
+  return process.env.E2E_FUNCTIONS_URL ?? `${stack().url}/functions/v1`;
+}
+
+export async function callFunction(client: SupabaseClient, name: string, body: unknown): Promise<Response> {
+  const token = (await client.auth.getSession()).data.session?.access_token ?? '';
+  return fetch(`${functionsUrl()}/${name}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, apikey: stack().anonKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
 export function admin(): SupabaseClient {
   return createClient(stack().url, stack().serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
 }

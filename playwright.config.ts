@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
 
 // End to end tests run against the local Supabase stack (`pnpm db:start`) and a Next.js dev server
@@ -23,7 +24,13 @@ export default defineConfig({
     trace: 'retain-on-failure',
     launchOptions: {
       ...(chromiumPath ? { executablePath: chromiumPath } : {}),
-      args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--autoplay-policy=no-user-gesture-required'],
+      args: [
+        '--use-fake-ui-for-media-stream',
+        '--use-fake-device-for-media-stream',
+        // A steady tone instead of Chrome's short beeps, so speaking detection has a voice to find.
+        `--use-file-for-fake-audio-capture=${join(__dirname, 'e2e', '.auth', 'tone.wav')}`,
+        '--autoplay-policy=no-user-gesture-required',
+      ],
     },
   },
   projects: [
@@ -39,6 +46,7 @@ export default defineConfig({
       NEXT_PUBLIC_E2E: '1',
       NEXT_PUBLIC_DEV_EMAIL_SIGNIN: '1',
       NEXT_PUBLIC_SITE_URL: `http://localhost:${PORT}`,
+      ...(process.env.E2E_FUNCTIONS_URL ? { NEXT_PUBLIC_FUNCTIONS_URL: process.env.E2E_FUNCTIONS_URL } : {}),
       ...(process.env.E2E_SUPABASE_URL ? { NEXT_PUBLIC_SUPABASE_URL: process.env.E2E_SUPABASE_URL } : {}),
       ...(process.env.E2E_SUPABASE_ANON_KEY ? { NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.E2E_SUPABASE_ANON_KEY } : {}),
     },

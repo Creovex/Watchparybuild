@@ -8,6 +8,7 @@ import { Button, Notice, Switch, TextField, useToast } from '@watchparty/ui';
 import { RoomApi } from '@watchparty/ui/room';
 import { errorSentence } from '@/lib/errors';
 import { getBrowserClient } from '@/lib/supabase/client';
+import { FUNCTIONS_URL } from '@/lib/env';
 
 export function SettingsForm({
   userId,
@@ -55,7 +56,7 @@ export function SettingsForm({
     setDeleting(true);
     setDeleteError(null);
     const supabase = getBrowserClient();
-    const res = await new RoomApi(supabase).deleteAccount();
+    const res = await new RoomApi(supabase, { functionsUrl: FUNCTIONS_URL || undefined }).deleteAccount();
     if (!res.ok) {
       setDeleting(false);
       setDeleteError(errorSentence(res.code));

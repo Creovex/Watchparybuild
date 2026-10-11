@@ -120,6 +120,8 @@ export interface RoomControllerOptions {
   /** Runs `cb` every `ms`; the web app uses a Web Worker so hidden tabs are not throttled. */
   createTicker?: (ms: number, cb: () => void) => () => void;
   log?: (event: string, detail?: unknown) => void;
+  /** See RoomApiOptions.functionsUrl; unset everywhere except the local functions server. */
+  functionsUrl?: string;
 }
 
 const MESSAGE_PAGE = 100;
@@ -171,7 +173,7 @@ export class RoomController {
     this.opts = opts;
     this.supabase = opts.supabase;
     this.me = opts.me;
-    this.api = new RoomApi(opts.supabase);
+    this.api = new RoomApi(opts.supabase, { functionsUrl: opts.functionsUrl });
     this.clock = new ServerClock(async () => {
       const res = await this.api.serverTime();
       if (!res.ok) throw new Error('server_time failed');
@@ -416,7 +418,27 @@ export class RoomController {
     return `room:${this.roomId}:${epoch}:${kind}`;
   }
 
-  private async subscribe(epoch: number): Promise<void> {
+  private subscribeChain: Promise<void> = Promise.resolve();
+
+  /**
+   * Subscriptions run one at a time. supabase.channel() hands back an existing channel with the same
+   * topic, so two overlapping subscriptions (an epoch change, a check-in, a reconnect) could remove
+   * the channel the other one just joined and leave this member deaf to the room.
+   */
+  private subscribe(epoch: number): Promise<void> {
+    const run = this.subscribeChain.then(() => this.subscribeNow(epoch));
+    this.subscribeChain = run.catch(() => undefined);
+    return run;
+  }
+
+  private async subscribeNow(epoch: number): Promise<void> {
+    if (this.destroyed || this.store.get().status === 'fatal') return;
+    const joined =
+      this.serverChannel?.state === 'joined' &&
+      this.clientChannel?.state === 'joined' &&
+      this.serverChannel.topic === `realtime:${this.topic(epoch, 'server')}` &&
+      this.clientChannel.topic === `realtime:${this.topic(epoch, 'client')}`;
+    if (joined) return;
     await this.unsubscribe();
     await this.supabase.realtime.setAuth();
     const server = this.supabase.channel(this.topic(epoch, 'server'), { config: { private: true } });
@@ -720,7 +742,8 @@ export class RoomController {
   private startLoops(): void {
     const ticker = this.opts.createTicker ?? defaultTicker;
     this.stops.push(
-      ticker(TOUCH_INTERVAL_MS, () => void this.touch().then(() => this.refreshMembers())),
+      // Every check-in also refreshes members and picks up any chat a dropped event missed.
+      ticker(TOUCH_INTERVAL_MS, () => void this.touch().then(() => Promise.all([this.refreshMembers(), this.loadNewerMessages()]))),
       ticker(CLOCK_RESYNC_MS, () => void this.clock.sync().catch(() => undefined)),
       defaultTicker(HEARTBEAT_INTERVAL_MS, () => this.sendHeartbeat()),
       defaultTicker(WAIT_CHECK_MS, () => void this.waitForEveryone()),
@@ -732,7 +755,16 @@ export class RoomController {
     const state = this.store.get();
     if (!this.roomId || !this.engineSession || state.status === 'fatal') return;
     const res = await this.api.touchMember(this.roomId, this.engineSession, this.buffering, state.syncMode);
-    if (!res.ok) this.handleTouchFailure(res.code);
+    if (!res.ok) {
+      this.handleTouchFailure(res.code);
+      return;
+    }
+    // A missed moderation event shows up here as a newer channel epoch: move to its topics.
+    const epoch = (res.data as { channel_epoch?: number } | null)?.channel_epoch;
+    if (typeof epoch === 'number' && epoch > this.epoch) {
+      this.epoch = epoch;
+      void this.subscribe(epoch).catch(() => this.scheduleReconnect());
+    }
   }
 
   private handleTouchFailure(code: ErrorCode, retry = true): void {
@@ -936,8 +968,13 @@ export class RoomController {
   async closeRoom(): Promise<boolean> {
     if (!this.roomId) return false;
     const res = await this.api.closeRoom(this.roomId);
-    if (!res.ok) this.notify({ message: '', tone: 'error', code: res.code });
-    return res.ok;
+    if (!res.ok) {
+      this.notify({ message: '', tone: 'error', code: res.code });
+      return false;
+    }
+    // Everyone else hears it on the server topic; the host knows already.
+    this.fail('closed');
+    return true;
   }
 
   async transferHost(userId: string): Promise<boolean> {

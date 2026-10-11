@@ -77,7 +77,34 @@ Until S5 runs, the YouTube adapter reads `getAvailablePlaybackRates()` at load t
 | Android Chrome | NOT RUN | | |
 
 ## S6: Realtime authorization
-Result: NOT RUN (runs in Phase 3 against the local stack)
-Date:
+Result: PASS
+Date: 11 October 2026
+Where: the local Supabase stack in Docker on the build container, driven by a Deno test with the Supabase JavaScript client over WebSocket. Four signed in test users: a host, a member, a member the host removes, and a non member.
 Question: A non member is refused both topics; a member can receive both and send only on the client topic; after an epoch change the removed user cannot join the new topics, and the old topics fall silent once remaining members have moved.
 Pass rule: every assertion in `supabase/tests/realtime/s6.test.ts` passes.
+How to run: `pnpm db:s6` with the variables exported as in `supabase/tests/README.md`. The test is permanent and runs in about 50 seconds.
+
+| Check | Result |
+|---|---|
+| Non member joins the server topic | Refused: `CHANNEL_ERROR`, "Unauthorized: You do not have permissions to read from this Channel topic" |
+| Non member joins the client topic | Refused the same way |
+| Members join both topics | `SUBSCRIBED` |
+| Member broadcasts on the client topic | Acknowledged `ok`; the host receives it |
+| Member broadcasts on the server topic | Acknowledged `error`; never received |
+| Member tracks presence on the client topic | `ok`; the host sees the member |
+| Member tracks presence on the server topic | `error`; the host never sees it |
+| A database event (`chat`) on the server topic | Received by members |
+| Non member joins a public channel with the server topic's name | Subscribes, but receives no database event |
+| Host removes a member through the `moderate` RPC (Remote Procedure Call) | The `moderation` event `{ target, action: 'remove', new_epoch: 2 }` reaches the host, the member and the removed user on the epoch 1 server topic |
+| Removed user joins the epoch 2 server and client topics | Refused, `CHANNEL_ERROR` |
+| Removed user joins the epoch 1 server topic again on a new connection | Refused, `CHANNEL_ERROR` |
+| Member joins epoch 3, ahead of the room | Refused |
+| Events on the removed user's still open epoch 1 server subscription after a chat message and a title change | None; the remaining members received both on the epoch 2 topic |
+| Removed user broadcasts on the epoch 1 client topic after the members moved | Acknowledged `error`; nothing reaches the members on the new topics |
+
+Observations:
+1. The local stack needed no configuration change for private channels: the policies on `realtime.messages` decide access exactly as the Realtime Authorization documentation describes.
+2. The local stack also accepts public channels, but Realtime keeps public and private channels with the same topic name apart, so no database broadcast reached the public one. Hosted projects have an "Allow public access" Realtime setting that must be turned off (gap G26).
+3. A refused join reaches the client as `CHANNEL_ERROR`, with the "Unauthorized" message, about 5 seconds after `subscribe` (measured twice on the local stack), not at once. Joins that are allowed answer `SUBSCRIBED` quickly. The room client should treat `CHANNEL_ERROR` on a room topic as final rather than retrying.
+4. After the removal, the removed user's own send on the old client topic was answered with `error`, even though that subscription had been authorized when it joined. The design does not rely on this; the epoch change is what keeps server events away from them.
+5. Payloads sent with `realtime.send` arrive with an extra `id` key when the row has none (decision "Server topic events" in `docs/decisions.md`).

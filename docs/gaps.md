@@ -196,3 +196,66 @@ Found in: Phase 0
 What is unknown: Whether the subscriptions and devices listed in Q5 are available.
 Effect on the build: Spikes S1 to S5 and every device matrix row are BLOCKED.
 Next action: James answers Q5.
+
+## G24: profile_public cannot use security_invoker
+Status: OPEN
+Found in: Phase 3
+What is unknown: The prompt asks for views created with `security_invoker = true` so table RLS still applies, and also for `profile_public` to show the names of other people who share a room. A profile row is readable only by its owner, so an invoker view would show the caller's own row and nobody else's.
+Effect on the build: DEFAULT taken: `profile_public` runs with its owner's rights instead of the caller's, is marked `security_barrier`, exposes only `id`, `display_name` and `avatar_url`, and returns only the caller and people who share at least one room with them in any membership state. The Supabase security advisor will list it as a view that bypasses RLS. Tested in `supabase/tests/database/01_read_access.test.sql`.
+Next action: James decides ACCEPTED, or asks for another shape, such as a profiles policy for people who share a room combined with column grants limited to the three public columns.
+
+## G25: Join key for members already in a private room
+Status: OPEN
+Found in: Phase 3
+What is unknown: The prompt says `join_room` checks the key for private rooms, with no exceptions. E14 then has a joined member open the room in a second browser context, which has no key: the room page moves the key out of the address bar into the first tab's `sessionStorage`. Without an exception that second join returns `bad_key` and E14 cannot pass.
+Effect on the build: DEFAULT taken: the key is not asked of a user whose membership row is already `joined`, or of the room's host. Everyone else, including a member who left, needs the current key, so rotating the key still shuts out old links. Tested in `supabase/tests/database/03_join_room.test.sql`.
+Next action: James decides ACCEPTED, or asks for the key on every join, in which case the second context in E14 must be opened with the full room link.
+
+## G26: Realtime public access on the hosted projects
+Status: OPEN
+Found in: spike S6
+What is unknown: Hosted Supabase projects have a Realtime setting, "Allow public access", that must be turned off before Realtime refuses every channel that is not private. The local stack has no such setting and accepts public channels. S6 showed that a public channel with a room topic's name receives none of the database's private broadcasts, so room data does not leak, but while the setting is on anyone holding the project's public anon key can open public channels and spend the project's message quota.
+Effect on the build: None on the local stack. On `watchparty-dev` and production, public channels stay usable until the setting is turned off.
+Next action: James turns off "Allow public access" in the Realtime settings of `watchparty-dev` when creating it (Q1), and of the production project.
+
+## G30: Voice credentials need the engine session
+Status: OPEN
+Found in: Phase 5
+What is unknown: The prompt lists only `room_id` as the input of `turn-credentials` and `livekit-token`, yet requires the caller to be a "not replaced" member. Only the caller's `engine_session` (the value `join_room` returns) can show that, and the prompt does not say how the functions get it.
+Effect on the build: DEFAULT taken: both functions require `{ room_id, engine_session }` and answer `not_member` when the session is not the member's current one. A closed room also answers `not_member`. The web app and the extension panel must send the engine session they hold.
+Next action: James decides ACCEPTED, or names another way to tell a replaced browser context apart.
+
+## G31: When speaking stops
+Status: OPEN
+Found in: Phase 5
+What is unknown: The prompt says speaking starts once the level stays above the threshold for 150 ms but not when it stops.
+Effect on the build: DEFAULT taken: speaking stops once the level stays at or below the threshold for 150 ms. Ducking adds its own 600 ms before restoring the movie, so the speaking ring may flicker between words while the movie volume does not.
+Next action: James decides ACCEPTED or gives a release time; spike S3 can measure one alongside the threshold.
+
+## G32: Camera size in server voice
+Status: OPEN
+Found in: Phase 5
+What is unknown: The prompt sets 320 by 240 at 15 frames per second for mesh voice only, and asks for simulcast in server voice without a capture size.
+Effect on the build: DEFAULT taken: server voice captures the camera at the same 320 by 240 at 15 frames per second, with simulcast on. At that size LiveKit sends fewer simulcast layers, which keeps phone uploads low in 10 person rooms.
+Next action: James decides ACCEPTED, or asks for a larger capture in server voice after device row D4.
+
+## G33: Edge Functions cannot boot in the cloud build sandbox
+Status: OPEN
+Found in: Phase 5
+What is unknown: In the sandbox this build ran in, outgoing HTTPS passes through a proxy with its own certificate. The local edge runtime runs in Docker, does not trust that certificate and cannot download the functions' npm packages, so `supabase functions serve` answers every call with a boot error. It is not known whether this happens on James's machine; it should not.
+Effect on the build: The functions were checked instead by running each `index.ts` with the repository's Deno against the local stack: preflights, `unauthorized`, STUN in test mode, `not_member`, `wrong_voice_mode`, the real `moderate` RPC and `delete-account` all answered as specified. Playwright E7 and E13, which need the functions served by the local stack, cannot run in that sandbox. Stopping `functions serve` also removed the stack's edge runtime container; `supabase stop` then `supabase start` brings it back.
+Next action: Run `pnpm exec supabase functions serve` and E7 and E13 on a machine without that proxy, and record the result here.
+
+## G34: How many LiveKit retries
+Status: OPEN
+Found in: Phase 5
+What is unknown: "Retries the LiveKit call 3 times" can mean 3 attempts in all or 1 attempt and 3 retries.
+Effect on the build: DEFAULT taken: 1 attempt and 3 retries, 250, 500 and 1,000 ms apart, so at most about 2 seconds pass before the host sees `voice_sync_failed`.
+Next action: James decides ACCEPTED or asks for 3 attempts in all.
+
+## G35: Environment variables the functions need for CORS
+Status: OPEN
+Found in: Phase 5
+What is unknown: The prompt says the functions answer preflights for the site URL, the preview domain and the extension origin, but its table of environment variables has none the functions can read for them.
+Effect on the build: DEFAULT taken: the functions read `SITE_URL`, `PREVIEW_URL` and `EXTENSION_ORIGINS` (comma separated `chrome-extension://<id>` origins) from their secrets. The local stack sets `SITE_URL` in `supabase/config.toml`. `.env.example` and the hosted projects' Edge Function secrets do not list them yet, so a hosted function answers preflights for none of them until they are set.
+Next action: The lead adds the three to `.env.example`; James sets them as Edge Function secrets on `watchparty-dev` together with the LiveKit and Cloudflare secrets (Q3).

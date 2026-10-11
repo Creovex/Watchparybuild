@@ -1,0 +1,256 @@
+-- Test helpers for the pgTAP files in this folder. Each test file includes this file with `\ir`
+-- right after `begin`, so the helpers live inside the test's transaction and are rolled back with
+-- it. The `.psql` extension keeps `supabase test db` from running it as a test of its own.
+--
+-- People are named ('host', 'guest1', ...); `tests.uid(name)` turns a name into a fixed id.
+-- Helpers that set up data are SECURITY DEFINER so they work whichever role a test is using.
+-- Helpers that call an RPC as someone set that person's JWT claims for the call and put the
+-- previous claims back afterwards.
+
+create schema tests;
+grant usage on schema tests to public;
+
+create function tests.uid(name text)
+returns uuid
+language sql
+immutable
+as $$
+  select md5('pgtap person ' || $1)::uuid;
+$$;
+
+-- Creates an auth user, which creates the profile through the sign up trigger.
+create function tests.new_user(name text, plan text default 'free', meta jsonb default null)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, raw_app_meta_data, created_at, updated_at)
+  values (
+    '00000000-0000-0000-0000-000000000000',
+    tests.uid($1),
+    'authenticated',
+    'authenticated',
+    $1 || '@pgtap.test',
+    coalesce($3, jsonb_build_object('full_name', 'Person ' || $1)),
+    '{}'::jsonb,
+    now(),
+    now()
+  );
+  if $2 <> 'free' then
+    update public.profiles p set plan = $2 where p.id = tests.uid($1);
+  end if;
+  return tests.uid($1);
+end;
+$$;
+
+-- Acts as a signed in person for the statements that follow.
+create function tests.as_user(name text)
+returns void
+language plpgsql
+as $$
+begin
+  perform set_config('request.jwt.claims', json_build_object('sub', tests.uid($1), 'role', 'authenticated')::text, true);
+  perform set_config('role', 'authenticated', true);
+end;
+$$;
+
+-- Acts as an anonymous visitor.
+create function tests.as_anon()
+returns void
+language plpgsql
+as $$
+begin
+  perform set_config('request.jwt.claims', json_build_object('role', 'anon')::text, true);
+  perform set_config('role', 'anon', true);
+end;
+$$;
+
+-- Back to the database owner.
+create function tests.as_owner()
+returns void
+language plpgsql
+as $$
+begin
+  perform set_config('role', 'postgres', true);
+  perform set_config('request.jwt.claims', '', true);
+end;
+$$;
+
+-- Runs an RPC call (a SQL expression returning jsonb) as the named person.
+create function tests.call_as(name text, call text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_previous text := current_setting('request.jwt.claims', true);
+  v_result jsonb;
+begin
+  perform set_config('request.jwt.claims', json_build_object('sub', tests.uid($1), 'role', 'authenticated')::text, true);
+  execute 'select ' || $2 into v_result;
+  perform set_config('request.jwt.claims', coalesce(v_previous, ''), true);
+  return v_result;
+end;
+$$;
+
+-- Creates a room as the named host and returns its id. Raises if create_room refuses.
+create function tests.new_room(host text, visibility text default 'public', control_mode text default 'host', source text default 'youtube', content_ref text default 'dQw4w9WgXcQ')
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_result jsonb;
+begin
+  v_result := tests.call_as($1, format('public.create_room(%L, %L, %L, %L, %L)', 'Room of ' || $1, $4, $5, $2, $3));
+  if not (v_result ->> 'ok')::boolean then
+    raise exception 'create_room failed: %', v_result;
+  end if;
+  return (v_result -> 'data' -> 'room' ->> 'id')::uuid;
+end;
+$$;
+
+create function tests.slug(room_id uuid)
+returns text
+language sql
+security definer
+set search_path = ''
+as $$
+  select r.slug from public.rooms r where r.id = $1;
+$$;
+
+create function tests.join_key(room_id uuid)
+returns text
+language sql
+security definer
+set search_path = ''
+as $$
+  select s.join_key from public.room_secrets s where s.room_id = $1;
+$$;
+
+-- join_room as the named person; the key defaults to the room's real key.
+create function tests.join(name text, room_id uuid, sync_mode text default 'auto')
+returns jsonb
+language sql
+security definer
+set search_path = ''
+as $$
+  select tests.call_as($1, format('public.join_room(%L, %L, %L)', tests.slug($2), tests.join_key($2), $3));
+$$;
+
+-- Moves a member's last refresh into the past, to make them absent or to age a window.
+create function tests.set_seen(room_id uuid, name text, seconds_ago numeric)
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  update public.room_members m
+  set last_seen_at = clock_timestamp() - $3 * interval '1 second'
+  where m.room_id = $1 and m.user_id = tests.uid($2);
+$$;
+
+create function tests.member(room_id uuid, name text)
+returns public.room_members
+language sql
+security definer
+set search_path = ''
+as $$
+  select m.* from public.room_members m where m.room_id = $1 and m.user_id = tests.uid($2);
+$$;
+
+create function tests.room(room_id uuid)
+returns public.rooms
+language sql
+security definer
+set search_path = ''
+as $$
+  select r.* from public.rooms r where r.id = $1;
+$$;
+
+create function tests.playback(room_id uuid)
+returns public.playback_state
+language sql
+security definer
+set search_path = ''
+as $$
+  select ps.* from public.playback_state ps where ps.room_id = $1;
+$$;
+
+-- Server topic events the database sent for a room in this transaction.
+create function tests.sent(room_id uuid, event text, epoch integer default null)
+returns integer
+language sql
+security definer
+set search_path = ''
+as $$
+  select count(*)::integer
+  from realtime.messages m
+  where m.event = $2
+    and m.topic like 'room:' || $1::text || ':%:server'
+    and ($3 is null or m.topic = public.server_topic($1, $3));
+$$;
+
+-- System messages of a code in a room.
+create function tests.system_messages(room_id uuid, code text)
+returns setof public.messages
+language sql
+security definer
+set search_path = ''
+as $$
+  select msg.* from public.messages msg
+  where msg.room_id = $1 and msg.system_code = $2
+  order by msg.created_at;
+$$;
+
+-- The code of a result envelope, or 'ok'.
+create function tests.code(result jsonb)
+returns text
+language sql
+immutable
+as $$
+  select case when ($1 ->> 'ok')::boolean then 'ok' else $1 ->> 'code' end;
+$$;
+
+-- Values carried between statements of a test, kept in transaction local settings.
+create function tests.put(key text, value text)
+returns text
+language sql
+as $$
+  select set_config('tests.' || $1, $2, true);
+$$;
+
+create function tests.get(key text)
+returns text
+language sql
+stable
+as $$
+  select current_setting('tests.' || $1);
+$$;
+
+create function tests.id(key text)
+returns uuid
+language sql
+stable
+as $$
+  select current_setting('tests.' || $1)::uuid;
+$$;
+
+-- Payloads of the server topic events of one kind for a room. realtime.send adds an `id` key to
+-- payloads that have none, so playback, member and moderation payloads carry a random `id`.
+create function tests.events(room_id uuid, event text, epoch integer default null)
+returns setof jsonb
+language sql
+security definer
+set search_path = ''
+as $$
+  select m.payload
+  from realtime.messages m
+  where m.event = $2
+    and m.topic like 'room:' || $1::text || ':%:server'
+    and ($3 is null or m.topic = public.server_topic($1, $3));
+$$;

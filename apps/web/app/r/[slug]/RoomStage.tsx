@@ -107,7 +107,7 @@ export function RoomStage({ controller, me, onRejoin }: { controller: RoomContro
       className="!absolute inset-x-0 bottom-0"
     />
   );
-  const extensionSlot = isPaidSource(room.source) && desktop ? <ExtensionSlot controller={controller} room={room} voice={voice} /> : null;
+  const extensionSlot = isPaidSource(room.source) && desktop ? <ExtensionSlot controller={controller} room={room} voice={voice} onRejoin={onRejoin} /> : null;
 
   const chat = (
     <div className="flex min-h-0 flex-1 flex-col">

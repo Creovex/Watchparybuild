@@ -69,8 +69,10 @@ Then load `apps/extension/dist` unpacked in `chrome://extensions` or `edge://ext
 | `pnpm db:concurrency` | Five simultaneous joins on a free room admit exactly two |
 | `pnpm fn:test` | Edge Function tests (Deno) |
 | `pnpm e2e` | Playwright end to end tests E1 to E14; needs `pnpm db:start` first |
+| `pnpm --filter @watchparty/extension verify-dist` | Checks the built extension: its id, minimal permissions, no wildcard hosts, no secrets |
+| `EXTENSION_E2E=1 pnpm --filter @watchparty/extension e2e` | Loads the built extension in Chromium and checks detection and a handover |
 
-`supabase/tests/README.md` lists the environment variables the Deno tests read. The end to end tests start their own dev server on port 3100 with a local test video in place of YouTube, and create their own users with the local stack's admin API. Set `PW_CHROMIUM_PATH` to use an installed Chromium instead of Playwright's download, and `E2E_EDGE=1` to also run them in Microsoft Edge.
+`supabase/tests/README.md` lists the environment variables the Deno tests read. If the local stack's edge runtime cannot start the functions (it could not in the cloud container this was built in, gap G33), run them with `pnpm fn:serve` and set `E2E_FUNCTIONS_URL=http://127.0.0.1:54331` for the end to end tests. The end to end tests start their own dev server on port 3100 with a local test video in place of YouTube, and create their own users with the local stack's admin API. Set `PW_CHROMIUM_PATH` to use an installed Chromium instead of Playwright's download, and `E2E_EDGE=1` to also run them in Microsoft Edge.
 
 ## Deploying the preview
 
@@ -81,7 +83,7 @@ Then load `apps/extension/dist` unpacked in `chrome://extensions` or `edge://ext
    pnpm exec supabase functions deploy turn-credentials livekit-token moderate delete-account
    pnpm exec supabase secrets set LIVEKIT_URL=... LIVEKIT_API_KEY=... LIVEKIT_API_SECRET=... \
      CLOUDFLARE_TURN_KEY_ID=... CLOUDFLARE_TURN_API_TOKEN=... SITE_URL=https://<preview domain> \
-     EXTENSION_ORIGINS=chrome-extension://<extension id>
+     EXTENSION_ORIGINS=chrome-extension://appcjgbhipnbklhodimgbmjhbncljoip
    ```
    In the dashboard: turn on the Google provider with the OAuth client id and secret; add `https://<preview domain>/auth/callback` to the redirect URLs; turn off "Allow public access" in Realtime settings so every channel is private; and set the room link address with `update public.app_config set value = 'https://<preview domain>' where key = 'site_url';` in the SQL editor.
 2. **Google Cloud.** In the OAuth client, add the Supabase callback address the Google provider page shows as an authorised redirect URI.

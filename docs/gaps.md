@@ -270,3 +270,45 @@ Found in: Phase 6
 What is unknown: Whether James accepts that, during a handover, the app's other tabs in the same browser lose their session. The web app keeps the session in cookies every tab of the site shares, and the prompt requires the room page to remove it from its storage without signing out, because only one holder may refresh a session.
 Effect on the build: While the extension holds the room, other tabs of the app in that browser behave as signed out until "Bring it back here" or closing the streaming tab returns the session. The room itself is unaffected.
 Next action: James decides ACCEPTED, or asks for the extension to sign in with its own session instead of taking the page's.
+
+## G36: Watch page addresses and title formats for the extension
+Status: OPEN
+Found in: Phase 6 (tied to G2)
+What is unknown: Which addresses are each service's watch pages, and how a title is named in them. The extension uses DEFAULT patterns until spike S1 records them: Netflix `/watch/*`; all of `www.primevideo.com` and Amazon's `/gp/video/*`; Disney+ `/video/*` and `/play/*`, with or without a locale before them. While testing, real Netflix redirected a signed out `/watch/<id>` request to `/title/<id>?fromWatch=true`, a page the content script does not match.
+Effect on the build: A room whose content reference is not a watch page cannot be handed over: the extension refuses it with `not_a_watch_page` rather than opening a tab with no panel. Prime Video matching its whole site may run the content script on pages that are not players (it stays idle there unless the tab holds a room). Title comparison for episode changes uses DEFAULT address patterns.
+Next action: James runs S1 and records the patterns; then `WATCH_PAGES` (`apps/extension/src/shared/watch-pages.ts`), the title patterns in `apps/extension/src/shared/services.ts` and the content reference validation in sync-core and the database are tightened to match.
+
+## G37: The room page shows one sentence for every refused handover
+Status: CLOSED BY DECISION
+Found in: Phase 6
+What is unknown: How the room page should word a handover the extension refuses.
+Effect on the build: Each refusal reason now has its own sentence in `apps/web/app/r/[slug]/Handover.tsx` (`not_a_watch_page` tells the host to set the address of the title while it plays, and tells a guest to ask the host), and the room page rejoins the room in place with the sentence as a notice instead of reloading.
+Next action: James reviews the sentences with the others at handover.
+
+## G38: The room page's return port does not reconnect
+Status: OPEN
+Found in: Phase 6
+What is unknown: Whether the reopening below works when the browser really restarts the extension's service worker, which no test here triggers.
+Effect on the build: `listenForReturn` in `apps/web/lib/extension.ts` now reopens the `room-page:<roomId>` port when it closes (backing off up to 30 seconds), and "Bring it back here" also sends `reclaim` as a one off message, which the extension answers with `return`. Until it is seen working after a real restart, a member could be left signed out of the web app if the worker restarts and the streaming tab is then closed.
+Next action: During spike S2, stop the service worker from `chrome://extensions` while a room is handed over, then close the streaming tab and check the room page gets the session back.
+
+## G39: Which player events count as the member's own
+Status: OPEN
+Found in: Phase 6
+What is unknown: Whether the services' own autoplay, resume seeks and small seeks can be told apart from the member's play, pause and seek. DEFAULT taken: an event counts only within 1.5 seconds of the member's own click, tap or key press on the page, and a seek only when it moves more than 1 second.
+Effect on the build: A member who controls the service's player some other way (media keys on the keyboard, a remote, the browser's own media controls) is followed by the room engine but does not move the room. A service that starts playing on its own does not start the room.
+Next action: James checks during S1 and device rows D5 to D7 that pausing and seeking with the service's own controls move the room, and that opening a title does not.
+
+## G40: Panel and full screen control on the real services
+Status: OPEN
+Found in: Phase 6 (tied to G12 and spike S2)
+What is unknown: Whether each service's page lets the panel `iframe` load and use the microphone, and whether the floating control shows in each service's full screen view. It cannot show when a service makes the video element itself full screen, since a video element shows no children. The panel worked in a stub watch page in headless Chromium; no real service has been tried.
+Effect on the build: If the panel cannot load or use the microphone on a service, voice there needs the browser's side panel instead (decision rule 3). In full screen the control can mute and unmute an active voice call and send reactions; joining voice and reading chat need the panel.
+Next action: James runs S2 on each service in Chrome and Edge and records the results.
+
+## G41: The extension's origin in the Edge Function secrets, and the Edge store id
+Status: OPEN
+Found in: Phase 6 (tied to G17 and G35)
+What is unknown: Whether the hosted Edge Functions list `chrome-extension://appcjgbhipnbklhodimgbmjhbncljoip` in `EXTENSION_ORIGINS`, and which id the Edge Add-ons store gives the published extension.
+Effect on the build: Until the origin is listed, `turn-credentials` and `livekit-token` refuse the panel's calls on a hosted project, so voice does not start in a streaming tab. A different Edge store id would need adding to `NEXT_PUBLIC_EXTENSION_IDS` and `EXTENSION_ORIGINS` as well.
+Next action: James sets `EXTENSION_ORIGINS` with the Edge Function secrets (Q3, G35); the store id is checked when publishing (G17).

@@ -1,0 +1,19 @@
+@import "tailwindcss";
+@import "@watchparty/ui/styles.css";
+
+/* Shared components live in packages/ui; let Tailwind see their class names. */
+@source "../../../../packages/ui/src";
+@source "./";
+
+/* The same three families as the web app, bundled from Fontsource instead of next/font. */
+:root {
+  --font-marquee: "Big Shoulders Variable";
+  --font-grotesk: "Hanken Grotesk Variable";
+  --font-timecode: "JetBrains Mono Variable";
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { SOURCE_LABEL, type RoomRow } from '@watchparty/sync-core';
-import { Button, Icon, Notice } from '@watchparty/ui';
+import { Button, Icon, useToast } from '@watchparty/ui';
 import type { RoomController, RoomVoice } from '@watchparty/ui/room';
 import Link from 'next/link';
 import { detectExtension, handOver, listenForReturn } from '@/lib/extension';
@@ -15,11 +15,39 @@ import { Wordmark } from '@/components/Wordmark';
 
 const extensionIdKey = 'watchparty:extension-id';
 
-export function ExtensionSlot({ controller, room, voice }: { controller: RoomController; room: RoomRow; voice: RoomVoice }) {
+/** What to tell the member when the extension does not take the room. */
+function refusalSentence(reason: string | null, service: string, isHost: boolean): string {
+  switch (reason) {
+    case 'not_a_watch_page':
+      return isHost
+        ? `That address isn't a ${service} watch page. Start the title playing on ${service}, copy the address, and set it in Room settings.`
+        : `The room's ${service} address isn't a watch page. Ask the host to set the address of the title while it plays.`;
+    case 'invalid_content_ref':
+    case 'unsupported_source':
+      return `The sync extension can't open this room's ${service} title.`;
+    case 'tab_failed':
+      return `The sync extension couldn't open a ${service} tab. Try again.`;
+    default:
+      return 'The sync extension did not answer. Check it is turned on, then try again.';
+  }
+}
+
+export function ExtensionSlot({
+  controller,
+  room,
+  voice,
+  onRejoin,
+}: {
+  controller: RoomController;
+  room: RoomRow;
+  voice: RoomVoice;
+  onRejoin: () => void;
+}) {
   const [extensionId, setExtensionId] = useState<string | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const toast = useToast();
   const service = SOURCE_LABEL[room.source];
+  const isHost = room.host_id === controller.userId;
 
   useEffect(() => {
     let cancelled = false;
@@ -45,13 +73,12 @@ export function ExtensionSlot({ controller, room, voice }: { controller: RoomCon
   async function start() {
     if (!extensionId || !room.content_ref) return;
     setBusy(true);
-    setFailed(false);
     const supabase = getBrowserClient();
     const { data } = await supabase.auth.getSession();
     const session = data.session;
     if (!session) {
       setBusy(false);
-      setFailed(true);
+      toast(refusalSentence(null, service, isHost), 'error');
       return;
     }
     supabase.auth.stopAutoRefresh();
@@ -60,10 +87,10 @@ export function ExtensionSlot({ controller, room, voice }: { controller: RoomCon
     if (!handed) {
       supabase.auth.startAutoRefresh();
       setBusy(false);
-      setFailed(true);
+      toast(refusalSentence(null, service, isHost), 'error');
       return;
     }
-    const ok = await handOver(extensionId, {
+    const result = await handOver(extensionId, {
       type: 'handover',
       room_id: handed.roomId,
       slug: handed.slug,
@@ -72,7 +99,7 @@ export function ExtensionSlot({ controller, room, voice }: { controller: RoomCon
       engine_session: handed.engineSession,
       session: { access_token: session.access_token, refresh_token: session.refresh_token },
     });
-    if (ok) {
+    if (result.ok) {
       try {
         sessionStorage.setItem(extensionIdKey, extensionId);
       } catch {
@@ -80,11 +107,11 @@ export function ExtensionSlot({ controller, room, voice }: { controller: RoomCon
       }
       forgetBrowserSession();
     } else {
-      // The extension did not take it: keep the session here and rejoin.
+      // The extension did not take it: keep the session here, say why, and rejoin the room.
       supabase.auth.startAutoRefresh();
       setBusy(false);
-      setFailed(true);
-      window.location.reload();
+      toast(refusalSentence(result.reason, service, isHost), 'error');
+      onRejoin();
     }
   }
 
@@ -93,7 +120,6 @@ export function ExtensionSlot({ controller, room, voice }: { controller: RoomCon
       <Button variant="primary" icon="play" busy={busy} disabled={!room.content_ref} onClick={() => void start()}>
         Open in {service} with sync
       </Button>
-      {failed ? <Notice tone="error">The sync extension did not answer. Check it is turned on, then try again.</Notice> : null}
     </div>
   );
 }

@@ -9,7 +9,7 @@ Result: BLOCKED (needs Netflix, Prime Video and Disney+ subscriptions and a desk
 Date: 11 October 2026
 Question: Per paid source on desktop Chrome and Edge, can a content script find the video element, play, pause, read position, detect buffering, set volume, set rates 0.95 and 1.05, and seek? Which seek works: setting `currentTime`, or calling the page's own player from a script injected into the page's main world? What are the watch page address patterns and content reference formats?
 Pass rule: each capability works 10 times in a row with no error screen.
-How to run: load `apps/extension` unpacked, open a title, open the extension's service worker console and run the probe in `spikes/s1-probe.js` from the page console. It prints one line per capability.
+How to run: open a title on the service, open the browser's developer console on that streaming page itself, paste the contents of `spikes/s1-probe.js` and press Enter. It prints one PASS or FAIL line per capability, ready to copy into the table below (`spikes/README.md` has the details).
 
 | Service | Browser | Find video | Play | Pause | Position | Buffering | Volume | Rate 0.95 | Rate 1.05 | Seek by currentTime | Seek by page player | Watch path pattern | Content reference format |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|

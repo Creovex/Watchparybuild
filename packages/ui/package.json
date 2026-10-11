@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./room": "./src/room/index.ts",
-    "./styles.css": "./src/styles/ui.css"
+    "./styles.css": "./src/styles/ui.css",
+    "./errors": "./src/errors.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

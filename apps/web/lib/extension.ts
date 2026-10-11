@@ -55,25 +55,65 @@ export async function detectExtension(): Promise<string | null> {
   return null;
 }
 
-export async function handOver(extensionId: string, message: HandoverMessage): Promise<boolean> {
+export type HandoverResult = { ok: true } | { ok: false; reason: string | null };
+
+/** `reason` is the extension's refusal reason, or null when it did not answer. */
+export async function handOver(extensionId: string, message: HandoverMessage): Promise<HandoverResult> {
   const reply = await send(extensionId, message, 4000);
-  return reply?.type === 'handover_ok';
+  if (reply?.type === 'handover_ok') return { ok: true };
+  return { ok: false, reason: reply?.type === 'handover_refused' ? reply.reason : null };
 }
 
 /**
  * Keeps a port open to the extension while it holds the session, so it can give the session back
- * when its tab closes, and so the page can ask for it back ("Bring it back here").
+ * when its tab closes, and so the page can ask for it back ("Bring it back here"). The browser may
+ * restart the extension's service worker, which closes the port, so the port is reopened, and a
+ * reclaim also goes as a one off message the extension answers directly.
  */
 export function listenForReturn(extensionId: string, roomId: string, onReturn: (msg: ReturnMessage) => void) {
   const rt = runtime();
   if (!rt) return { reclaim: () => undefined, close: () => undefined };
-  const port = rt.connect(extensionId, { name: `room-page:${roomId}` });
-  port.onMessage.addListener((message) => {
+  let port: ChromePort | null = null;
+  let closed = false;
+  let returned = false;
+  let retry: ReturnType<typeof setTimeout> | null = null;
+
+  const deliver = (message: unknown) => {
     const parsed = ExtensionReply.safeParse(message);
-    if (parsed.success && parsed.data.type === 'return' && parsed.data.room_id === roomId) onReturn(parsed.data);
-  });
+    if (returned || !parsed.success || parsed.data.type !== 'return' || parsed.data.room_id !== roomId) return;
+    returned = true;
+    onReturn(parsed.data);
+  };
+
+  const open = (attempt = 0) => {
+    if (closed) return;
+    try {
+      const next = rt.connect(extensionId, { name: `room-page:${roomId}` });
+      next.onMessage.addListener(deliver);
+      next.onDisconnect.addListener(() => {
+        if (port === next) port = null;
+        // Reopening wakes a restarted service worker; back off so a removed extension is not polled hard.
+        if (!closed && !returned) retry = setTimeout(() => open(attempt + 1), Math.min(30_000, 1000 * 2 ** attempt));
+      });
+      port = next;
+    } catch {
+      if (!closed) retry = setTimeout(() => open(attempt + 1), Math.min(30_000, 1000 * 2 ** attempt));
+    }
+  };
+  open();
+
   return {
-    reclaim: () => port.postMessage({ type: 'reclaim', room_id: roomId } satisfies PageToExtension),
-    close: () => port.disconnect(),
+    reclaim: () => {
+      const message = { type: 'reclaim', room_id: roomId } satisfies PageToExtension;
+      if (port) port.postMessage(message);
+      // Also ask directly; whichever answer comes first is used.
+      void send(extensionId, message, 5000).then((reply) => reply && deliver(reply));
+    },
+    close: () => {
+      closed = true;
+      if (retry) clearTimeout(retry);
+      port?.disconnect();
+      port = null;
+    },
   };
 }

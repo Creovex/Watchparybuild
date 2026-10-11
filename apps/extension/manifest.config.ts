@@ -29,13 +29,13 @@ export function appMatches(siteUrl: string | undefined): string[] {
 }
 
 export function buildManifest(vars: Record<string, string | undefined>, version: string) {
-  const appName = vars.NEXT_PUBLIC_APP_NAME || 'Watchparty';
+  const appName = vars.NEXT_PUBLIC_APP_NAME || 'Synvello';
   const app = appMatches(vars.NEXT_PUBLIC_SITE_URL);
   return {
     manifest_version: 3 as const,
     name: `${appName} sync`,
     short_name: appName,
-    description: 'Keeps Netflix, Prime Video and Disney+ in step with your watch party room, with chat and voice beside the film.',
+    description: `Keeps Netflix, Prime Video and Disney+ in step with your ${appName} room, with chat and voice beside the film.`,
     version,
     key: PUBLIC_KEY,
     minimum_chrome_version: '116',

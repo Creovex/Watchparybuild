@@ -3,7 +3,7 @@ import { appMatches, buildManifest, PANEL_PAGE, PUBLIC_KEY } from '../manifest.c
 import { pageOrigins } from '../src/shared/env';
 
 describe('manifest', () => {
-  const manifest = buildManifest({ NEXT_PUBLIC_APP_NAME: 'Watchparty', NEXT_PUBLIC_SITE_URL: 'https://watch.example' }, '0.1.0');
+  const manifest = buildManifest({ NEXT_PUBLIC_APP_NAME: 'Synvello', NEXT_PUBLIC_SITE_URL: 'https://watch.example' }, '0.1.0');
 
   it('carries the fixed key and only the storage permission', () => {
     expect(manifest.manifest_version).toBe(3);

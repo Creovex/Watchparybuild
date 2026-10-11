@@ -9,7 +9,7 @@ Status values: `OPEN`, `ACCEPTED` (James agreed to ship with the limitation; sti
 Questions are written here because most answers are account credentials, which belong in `.env.local` and the Supabase dashboard, never in a chat log. Each has a recommended option first.
 
 ### Q1: Supabase project for preview testing (gap G21)
-Create the free project `watchparty-dev` and put its URL and anon key in `apps/web/.env.local`?
+Create the free project `synvello-dev` and put its URL and anon key in `apps/web/.env.local`?
 1. Yes, James creates it and pastes the two values into `.env.local` (recommended: nothing else in the preview environment works without it).
 2. Use only the local stack on a machine with Docker for now.
 
@@ -24,7 +24,7 @@ OAuth means the open standard Google sign in uses to hand a signed identity to t
 
 ### Q4: Fixed preview domain (gap G22)
 The sync extension's `externally_connectable` list cannot use a `vercel.app` wildcard.
-1. A Vercel branch alias such as `watchparty-dev.vercel.app` pinned to the `dev` branch (recommended: free, fixed, no domain purchase).
+1. A Vercel branch alias such as `synvello-dev.vercel.app` pinned to the `dev` branch (recommended: free, fixed, no domain purchase).
 2. A subdomain of a domain James owns, such as `dev.<domain>`.
 
 ### Q5: Test kit (gap G23)
@@ -145,12 +145,12 @@ What is unknown: Some videos block embedding or need an age check.
 Effect on the build: Those videos cannot be used; members see "This video can't be played outside YouTube."
 Next action: James decides whether this is ACCEPTED.
 
-## G16: Product name, domain, icons, terms and privacy
+## G16: Domain, icons, terms and privacy
 Status: OPEN
 Found in: build prompt
-What is unknown: The product name, domain, icon art, terms text and privacy text.
-Effect on the build: The display name comes from `NEXT_PUBLIC_APP_NAME`; icons are generated from that name; terms and privacy pages carry placeholder text marked for James.
-Next action: James supplies them.
+What is unknown: The domain, icon art, terms text and privacy text. The product name is decided: Synvello (given in the build session, 11 October 2026).
+Effect on the build: The display name defaults to Synvello and can be overridden with `NEXT_PUBLIC_APP_NAME`; icons are generated from that name (an amber S); terms and privacy pages carry placeholder text marked for James.
+Next action: James supplies the domain, icon art, terms and privacy text.
 
 ## G17: Chrome Web Store fee and review
 Status: OPEN
@@ -219,8 +219,8 @@ Next action: James decides ACCEPTED, or asks for the key on every join, in which
 Status: OPEN
 Found in: spike S6
 What is unknown: Hosted Supabase projects have a Realtime setting, "Allow public access", that must be turned off before Realtime refuses every channel that is not private. The local stack has no such setting and accepts public channels. S6 showed that a public channel with a room topic's name receives none of the database's private broadcasts, so room data does not leak, but while the setting is on anyone holding the project's public anon key can open public channels and spend the project's message quota.
-Effect on the build: None on the local stack. On `watchparty-dev` and production, public channels stay usable until the setting is turned off.
-Next action: James turns off "Allow public access" in the Realtime settings of `watchparty-dev` when creating it (Q1), and of the production project.
+Effect on the build: None on the local stack. On `synvello-dev` and production, public channels stay usable until the setting is turned off.
+Next action: James turns off "Allow public access" in the Realtime settings of `synvello-dev` when creating it (Q1), and of the production project.
 
 ## G30: Voice credentials need the engine session
 Status: OPEN
@@ -262,7 +262,7 @@ Status: OPEN
 Found in: Phase 5
 What is unknown: The prompt says the functions answer preflights for the site URL, the preview domain and the extension origin, but its table of environment variables has none the functions can read for them.
 Effect on the build: DEFAULT taken: the functions read `SITE_URL`, `PREVIEW_URL` and `EXTENSION_ORIGINS` (comma separated `chrome-extension://<id>` origins) from their secrets. The local stack sets `SITE_URL` in `supabase/config.toml`. `.env.example` and the hosted projects' Edge Function secrets do not list them yet, so a hosted function answers preflights for none of them until they are set.
-Next action: The lead adds the three to `.env.example`; James sets them as Edge Function secrets on `watchparty-dev` together with the LiveKit and Cloudflare secrets (Q3).
+Next action: The lead adds the three to `.env.example`; James sets them as Edge Function secrets on `synvello-dev` together with the LiveKit and Cloudflare secrets (Q3).
 
 ## G42: Handing over to the extension signs the browser's other tabs out
 Status: OPEN

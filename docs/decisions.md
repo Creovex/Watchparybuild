@@ -47,8 +47,12 @@ Topic parsing is done in one `SECURITY DEFINER` helper, `public.realtime_topic_a
 
 ## Design
 
+### Product name: Synvello
+Date: 11 October 2026 (given in the build session)
+The product is called Synvello. It is the default display name in the web app, the PWA manifest, the generated icons and the sync extension, and `NEXT_PUBLIC_APP_NAME` can still override it per deployment. Internal identifiers keep the working name: the `@watchparty/` package scope, storage keys and the local Supabase project id. Users never see them, and renaming them would only churn imports and lose saved room keys on machines that already ran the build.
+
 ### Visual direction: the projection booth
-Date: 11 October 2026 (DEFAULT; James has not supplied a brand, gap G16)
+Date: 11 October 2026 (DEFAULT; James has not supplied a brand beyond the name, gap G16)
 The app is used in the evening with a film playing, so the interface behaves like a cinema with the house lights down: warm near black surfaces, warm off white text, and one accent, a tungsten amber taken from marquee bulbs and projector light. The video is always the brightest thing on screen. A second colour appears only with meaning: red for destructive actions and errors, green for "in sync".
 
 1. One dark theme, designed for dark rather than inverted from light. Surfaces step up in lightness for elevation; no drop shadows on dark surfaces.

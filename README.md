@@ -1,6 +1,6 @@
-# Watchparty
+# Synvello
 
-A mobile friendly watch party website: sign in with Google, start a room, send the link, and watch YouTube, Netflix, Prime Video or Disney+ in sync with voice, optional camera, chat, reactions and timed comments. The product name is not decided (gap G16); the display name comes from `NEXT_PUBLIC_APP_NAME`.
+A mobile friendly watch party website: sign in with Google, start a room, send the link, and watch YouTube, Netflix, Prime Video or Disney+ in sync with voice, optional camera, chat, reactions and timed comments. The display name defaults to Synvello and can be changed with `NEXT_PUBLIC_APP_NAME`.
 
 Everyone who writes in this repository follows [docs/WRITING_RULES.md](docs/WRITING_RULES.md).
 
@@ -76,7 +76,7 @@ Then load `apps/extension/dist` unpacked in `chrome://extensions` or `edge://ext
 
 ## Deploying the preview
 
-1. **Supabase.** Create the free project `watchparty-dev`. Then:
+1. **Supabase.** Create the free project `synvello-dev`. Then:
    ```sh
    pnpm exec supabase link --project-ref <project ref>
    pnpm exec supabase db push

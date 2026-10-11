@@ -1,3 +1,5 @@
+import { APP_NAME } from '../shared/env';
+
 // Docks the room panel on the right of the streaming page: an iframe of the extension's panel page,
 // inside a closed shadow root so the page's styles cannot reach it, with a tab on its left edge to
 // collapse and expand it. It overlays the page rather than resizing it, so nothing on the service's
@@ -85,7 +87,7 @@ export class PanelHost {
 
     const frame = doc.createElement('iframe');
     frame.src = this.panelUrl;
-    frame.title = 'Watch party room';
+    frame.title = `${APP_NAME} room`;
     frame.setAttribute('allow', 'microphone; camera; autoplay');
     setStyles(frame, {
       width: `${PANEL_WIDTH}px`,

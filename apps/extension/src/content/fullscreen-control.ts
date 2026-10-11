@@ -1,5 +1,6 @@
 import { REACTION_LABEL, REACTIONS, type ReactionEmoji } from '@watchparty/sync-core';
 import type { VoiceIndicator } from '../shared/messages';
+import { APP_NAME } from '../shared/env';
 
 // A small floating control shown inside the service's full screen player, where the docked panel
 // cannot be seen: the microphone, the count of chat messages that arrived during full screen, and
@@ -47,7 +48,7 @@ export class FullscreenControl {
 
     const bar = doc.createElement('div');
     bar.setAttribute('role', 'toolbar');
-    bar.setAttribute('aria-label', 'Watch party');
+    bar.setAttribute('aria-label', APP_NAME);
     setStyles(bar, {
       display: 'flex',
       gap: '4px',

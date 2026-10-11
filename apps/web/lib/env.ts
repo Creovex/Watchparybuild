@@ -1,6 +1,6 @@
 // Public configuration. Each value is read with its literal name so Next.js can inline it at build.
 
-export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'Watchparty';
+export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'Synvello';
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000').replace(/\/$/, '');
 export const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321';
 export const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';

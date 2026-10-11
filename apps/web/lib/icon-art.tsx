@@ -4,7 +4,7 @@ import { APP_NAME } from './env';
 // Placeholder app icon generated from the app name until James supplies art (gap G16): the first
 // letter in amber on the ink background, with the three marquee bulbs from the wordmark.
 export function iconResponse(size: number, { maskable = false } = {}) {
-  const letter = (Array.from(APP_NAME.trim())[0] ?? 'W').toUpperCase();
+  const letter = (Array.from(APP_NAME.trim())[0] ?? 'S').toUpperCase();
   const pad = maskable ? size * 0.2 : size * 0.08;
   const inner = size - pad * 2;
   return new ImageResponse(

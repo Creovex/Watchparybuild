@@ -10,15 +10,20 @@ for (const session of [state.session, state.guest_session])
   if (!session?.user?.email?.endsWith('@example.invalid'))
     throw new Error('Movie acceptance tests require temporary test accounts.');
 async function api(path: string, body: unknown, guest = false) {
-  const response = await fetch(path.startsWith('/functions/v1/') ? functions + path.slice('/functions/v1'.length) : backend + path, {
-    method: 'POST',
-    headers: {
-      apikey: state.anon,
-      Authorization: 'Bearer ' + (guest ? state.guest_session : state.session).access_token,
-      'Content-Type': 'application/json',
+  const response = await fetch(
+    path.startsWith('/functions/v1/')
+      ? functions + path.slice('/functions/v1'.length)
+      : backend + path,
+    {
+      method: 'POST',
+      headers: {
+        apikey: state.anon,
+        Authorization: 'Bearer ' + (guest ? state.guest_session : state.session).access_token,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
     },
-    body: JSON.stringify(body),
-  });
+  );
   return response.json();
 }
 async function signed(browser: Browser, guest = false) {
@@ -44,14 +49,15 @@ async function movieRows() {
   return response.json() as Promise<Array<{ id: string; title: string; status: string }>>;
 }
 async function clean() {
-  for (const movie of await movieRows()) await api('/functions/v1/movie-delete', { movie_id: movie.id });
+  for (const movie of await movieRows())
+    await api('/functions/v1/movie-delete', { movie_id: movie.id });
 }
-async function seeded() {
+async function seeded(title = 'Movie acceptance test') {
   const id = crypto.randomUUID();
   const bytes = readFileSync(join(__dirname, '../apps/web/test/fixtures/playable.mp4'));
   const started = await api('/functions/v1/movie-upload-start', {
     movie_id: id,
-    title: 'Movie acceptance test',
+    title,
     size_bytes: bytes.length,
     content_type: 'video/mp4',
     duration_sec: 20,
@@ -80,30 +86,48 @@ test.beforeEach(async () => {
 test.afterEach(async () => {
   await clean();
 });
-test('E16: upload a movie through the browser and watch with another member', async ({ browser }) => {
+test('E16: upload a movie through the browser and watch with another member', async ({
+  browser,
+}) => {
   const host = await signed(browser);
   const guest = await signed(browser, true);
   try {
     await host.page.goto('/movies');
-    await expect(host.page.getByRole('heading', { name: 'Your movies', exact: true })).toBeVisible();
+    await expect(
+      host.page.getByRole('heading', { name: 'Your movies', exact: true }),
+    ).toBeVisible();
     await host.page
       .getByLabel('Choose a movie', { exact: true })
       .setInputFiles(join(__dirname, '../apps/web/test/fixtures/playable.mp4'));
     await host.page.getByLabel('Movie title', { exact: true }).fill('Browser acceptance movie');
     await host.page.getByRole('button', { name: 'Upload movie', exact: true }).click();
-    await expect(host.page.getByRole('button', { name: 'Watch together', exact: true })).toBeVisible({
+    await expect(
+      host.page.getByRole('button', { name: 'Watch together', exact: true }),
+    ).toBeVisible({
       timeout: 60000,
     });
     await host.page.getByRole('button', { name: 'Watch together', exact: true }).click();
-    await expect(host.page.getByRole('dialog', { name: 'Invite friends' })).toBeVisible({ timeout: 45000 });
+    await expect(host.page.getByRole('dialog', { name: 'Invite friends' })).toBeVisible({
+      timeout: 45000,
+    });
     await expect(host.page.getByLabel('Private room invite link')).toHaveValue(/https?:/);
     const link = await host.page.getByLabel('Private room invite link').inputValue();
     const parsed = new URL(link);
+    await host.page.keyboard.press('Escape');
+    await expect(host.page.getByRole('dialog', { name: 'Invite friends' })).toBeHidden();
+    await host.page.getByRole('button', { name: 'Invite', exact: true }).click();
+    await expect(host.page.getByLabel('Private room invite link')).toHaveValue(link);
+    await host.page.bringToFront();
+    await host.context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await host.page.getByRole('button', { name: 'Copy link', exact: true }).click();
+    await expect(host.page.getByText('Invite link copied.', { exact: true })).toBeVisible();
     await host.page.getByRole('button', { name: 'Close', exact: true }).click();
     await enter(guest.page, parsed.pathname + parsed.hash);
     await expect(host.page.getByTestId('movie-video')).toBeVisible();
     await expect
-      .poll(() => guest.page.getByTestId('movie-video').evaluate((v: HTMLVideoElement) => v.readyState))
+      .poll(() =>
+        guest.page.getByTestId('movie-video').evaluate((v: HTMLVideoElement) => v.readyState),
+      )
       .toBeGreaterThanOrEqual(1);
     await host.page.getByTestId('movie-video').evaluate((v: HTMLVideoElement) => v.play());
     await expect
@@ -130,7 +154,9 @@ test('E16: upload a movie through the browser and watch with another member', as
       v.currentTime = 8;
     });
     await expect
-      .poll(() => guest.page.getByTestId('movie-video').evaluate((v: HTMLVideoElement) => v.currentTime))
+      .poll(() =>
+        guest.page.getByTestId('movie-video').evaluate((v: HTMLVideoElement) => v.currentTime),
+      )
       .toBeGreaterThan(7.7);
   } finally {
     await host.context.close();
@@ -170,7 +196,9 @@ test('E18: an account without upload permission sees no upload control and the A
         'Movie uploads are available only to approved accounts. You can still watch movies shared in a room.',
       ),
     ).toBeVisible();
-    await expect(guest.page.getByRole('button', { name: 'Upload movie', exact: true })).toHaveCount(0);
+    await expect(guest.page.getByRole('button', { name: 'Upload movie', exact: true })).toHaveCount(
+      0,
+    );
     const result = await api(
       '/functions/v1/movie-upload-start',
       {
@@ -190,7 +218,9 @@ test('E18: an account without upload permission sees no upload control and the A
   }
 });
 
-test('E19: an interrupted multipart upload resumes after reopening the tab', async ({ browser }) => {
+test('E19: an interrupted multipart upload resumes after reopening the tab', async ({
+  browser,
+}) => {
   const folder = join(__dirname, '.auth');
   mkdirSync(folder, { recursive: true });
   const path = join(folder, 'resumable-movie.mp4');
@@ -198,10 +228,13 @@ test('E19: an interrupted multipart upload resumes after reopening the tab', asy
   const padding = Buffer.alloc(34 * 1024 * 1024);
   padding.writeUInt32BE(padding.length, 0);
   padding.write('free', 4, 'ascii');
-  writeFileSync(path, Buffer.concat([
-    readFileSync(join(__dirname, '../apps/web/test/fixtures/playable.mp4')),
-    padding,
-  ]));
+  writeFileSync(
+    path,
+    Buffer.concat([
+      readFileSync(join(__dirname, '../apps/web/test/fixtures/playable.mp4')),
+      padding,
+    ]),
+  );
   const host = await signed(browser);
   try {
     await host.page.route('**/*', async (route) => {
@@ -215,13 +248,21 @@ test('E19: an interrupted multipart upload resumes after reopening the tab', asy
     await host.page.getByLabel('Movie title', { exact: true }).fill('Recovery acceptance movie');
     await host.page.getByRole('button', { name: 'Upload movie', exact: true }).click();
     let id = '';
-    await expect.poll(async () => {
-      const movie = (await movieRows()).find((m) => m.status === 'uploading');
-      if (!movie) return false;
-      id = movie.id;
-      const result = await api('/functions/v1/movie-upload-urls', { movie_id: id, part_numbers: [1] });
-      return result.data?.uploaded?.some((p: { part_number: number }) => p.part_number === 1);
-    }, { timeout: 30000 }).toBe(true);
+    await expect
+      .poll(
+        async () => {
+          const movie = (await movieRows()).find((m) => m.status === 'uploading');
+          if (!movie) return false;
+          id = movie.id;
+          const result = await api('/functions/v1/movie-upload-urls', {
+            movie_id: id,
+            part_numbers: [1],
+          });
+          return result.data?.uploaded?.some((p: { part_number: number }) => p.part_number === 1);
+        },
+        { timeout: 30000 },
+      )
+      .toBe(true);
     await host.context.setOffline(true);
     await host.page.close({ runBeforeUnload: false });
     await host.context.setOffline(false);
@@ -229,14 +270,147 @@ test('E19: an interrupted multipart upload resumes after reopening the tab', asy
     await reopened.goto('/movies');
     await reopened.getByLabel('Choose the same file to resume').setInputFiles(path);
     await reopened.getByRole('button', { name: 'Resume upload', exact: true }).click();
-    await expect(reopened.getByRole('button', { name: 'Watch together', exact: true })).toBeVisible({ timeout: 60000 });
+    await expect(reopened.getByRole('button', { name: 'Watch together', exact: true })).toBeVisible(
+      { timeout: 60000 },
+    );
     expect((await movieRows()).find((m) => m.id === id)?.status).toBe('ready');
   } finally {
     await host.context.close();
   }
 });
 
-test('Movie playback: two browsers share play, pause and seek with bounded drift', async ({ browser }) => {
+test('E20: pause resumes the selected file without creating another upload and preview closes with Escape', async ({
+  browser,
+}) => {
+  const host = await signed(browser);
+  try {
+    const folder = join(__dirname, '.auth');
+    mkdirSync(folder, { recursive: true });
+    const path = join(folder, 'pause-movie.mp4');
+    const padding = Buffer.alloc(34 * 1024 * 1024);
+    padding.writeUInt32BE(padding.length, 0);
+    padding.write('free', 4, 'ascii');
+    writeFileSync(
+      path,
+      Buffer.concat([
+        readFileSync(join(__dirname, '../apps/web/test/fixtures/playable.mp4')),
+        padding,
+      ]),
+    );
+    await host.page.route('**/*', async (route) => {
+      const request = route.request();
+      const part = new URL(request.url()).searchParams.get('partNumber');
+      if (request.method() === 'PUT' && part && Number(part) > 1) await route.abort();
+      else await route.continue();
+    });
+    await host.page.goto('/movies');
+    await host.page.getByLabel('Choose a movie', { exact: true }).setInputFiles(path);
+    await host.page.getByLabel('Movie title', { exact: true }).fill('Paused movie');
+    await host.page.getByRole('button', { name: 'Upload movie', exact: true }).click();
+    await expect
+      .poll(async () => {
+        const movie = (await movieRows()).find((m) => m.status === 'uploading');
+        if (!movie) return false;
+        const result = await api('/functions/v1/movie-upload-urls', {
+          movie_id: movie.id,
+          part_numbers: [1],
+        });
+        return result.data?.uploaded?.some(
+          (part: { part_number: number }) => part.part_number === 1,
+        );
+      })
+      .toBe(true);
+    const id = (await movieRows()).find((m) => m.status === 'uploading')!.id;
+    await host.page.getByRole('button', { name: 'Pause upload', exact: true }).click();
+    await expect(
+      host.page.getByRole('button', { name: 'Resume upload', exact: true }),
+    ).toBeEnabled();
+    await expect(host.page.getByText('Upload paused.', { exact: false })).toBeVisible();
+    await expect(host.page.getByLabel('Movie title', { exact: true })).toBeDisabled();
+    await host.page.unroute('**/*');
+    await host.page.getByRole('button', { name: 'Resume upload', exact: true }).click();
+    await expect(
+      host.page.getByRole('button', { name: 'Watch together', exact: true }),
+    ).toBeVisible({ timeout: 60000 });
+    expect((await movieRows()).filter((m) => m.status === 'ready').map((m) => m.id)).toEqual([id]);
+    await host.page.getByRole('button', { name: 'Preview movie', exact: true }).click();
+    await expect(host.page.getByRole('dialog', { name: 'Preview: Paused movie' })).toBeVisible();
+    await host.page.keyboard.press('Escape');
+    await expect(host.page.getByRole('dialog', { name: 'Preview: Paused movie' })).toBeHidden();
+  } finally {
+    await host.context.close();
+  }
+});
+
+test('E21: invalid files recover to a valid selection without starting an upload', async ({
+  browser,
+}) => {
+  const host = await signed(browser);
+  try {
+    await host.page.goto('/movies');
+    await host.page.getByLabel('Choose a movie', { exact: true }).setInputFiles({
+      name: 'broken.mp4',
+      mimeType: 'video/mp4',
+      buffer: Buffer.from('invalid movie'),
+    });
+    await expect(host.page.getByRole('main').getByRole('alert')).toContainText('unsupported');
+    expect((await movieRows()).filter((m) => m.status !== 'failed')).toHaveLength(0);
+    await host.page
+      .getByLabel('Choose a movie', { exact: true })
+      .setInputFiles(join(__dirname, '../apps/web/test/fixtures/playable.mp4'));
+    await expect(
+      host.page.getByRole('button', { name: 'Upload movie', exact: true }),
+    ).toBeEnabled();
+    await expect(host.page.getByRole('main').getByRole('alert')).toHaveCount(0);
+  } finally {
+    await host.context.close();
+  }
+});
+
+test('E22: phone and desktop layouts expose Android and keep their content within the viewport', async ({
+  browser,
+}) => {
+  const host = await signed(browser);
+  const title = 'ALongMovieTitleWithoutAnySpaces'.repeat(4).slice(0, 100);
+  const movie = await seeded(title);
+  const room = await api('/rest/v1/rpc/create_room', {
+    title: title.slice(0, 80),
+    source: 'upload',
+    content_ref: movie,
+    visibility: 'private',
+    control_mode: 'host',
+  });
+  expect(room.ok).toBe(true);
+  try {
+    for (const width of [320, 390, 1280]) {
+      await host.page.setViewportSize({ width, height: 850 });
+      for (const path of ['/home', '/movies', '/android']) {
+        await host.page.goto(path);
+        await expect(host.page.getByRole('heading', { level: 1 })).toBeVisible();
+        if (path !== '/android')
+          await expect(host.page.getByRole('heading', { name: title, exact: true })).toBeVisible();
+        await expect(
+          host.page.getByRole('link', { name: 'Android app', exact: true }).first(),
+        ).toBeVisible();
+        await host.page.screenshot({
+          path: join(__dirname, '../test-results', `flow-${width}-${path.slice(1)}.png`),
+          fullPage: true,
+        });
+        expect(
+          await host.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+          `Content overflows at ${path}, viewport ${width}`,
+        ).toBe(true);
+      }
+    }
+  } finally {
+    await api('/rest/v1/rpc/close_room', { room_id: room.data.room.id });
+    await host.context.close();
+  }
+});
+
+test('Movie playback: two browsers share play, pause and seek with bounded drift', async ({
+  browser,
+}) => {
   const id = await seeded();
   const room = await api('/rest/v1/rpc/create_room', {
     title: 'Synchronized movie acceptance',
@@ -253,13 +427,18 @@ test('Movie playback: two browsers share play, pause and seek with bounded drift
   try {
     await enter(guest.page, url.pathname + url.hash);
     await expect
-      .poll(() => guest.page.getByTestId('movie-video').evaluate((v: HTMLVideoElement) => v.readyState))
+      .poll(() =>
+        guest.page.getByTestId('movie-video').evaluate((v: HTMLVideoElement) => v.readyState),
+      )
       .toBeGreaterThanOrEqual(1);
     await host.page.getByTestId('movie-video').evaluate((v: HTMLVideoElement) => v.play());
     await expect
-      .poll(() => guest.page.getByTestId('movie-video').evaluate((v: HTMLVideoElement) => v.paused), {
-        timeout: 10000,
-      })
+      .poll(
+        () => guest.page.getByTestId('movie-video').evaluate((v: HTMLVideoElement) => v.paused),
+        {
+          timeout: 10000,
+        },
+      )
       .toBe(false);
     await expect
       .poll(
@@ -282,7 +461,9 @@ test('Movie playback: two browsers share play, pause and seek with bounded drift
       v.currentTime = 8;
     });
     await expect
-      .poll(() => guest.page.getByTestId('movie-video').evaluate((v: HTMLVideoElement) => v.currentTime))
+      .poll(() =>
+        guest.page.getByTestId('movie-video').evaluate((v: HTMLVideoElement) => v.currentTime),
+      )
       .toBeGreaterThan(7.7);
   } finally {
     await api('/rest/v1/rpc/close_room', { room_id: room.data.room.id });

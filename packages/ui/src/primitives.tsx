@@ -358,7 +358,7 @@ export function Sheet({
       className="fixed inset-x-0 bottom-0 top-auto m-0 mx-auto max-h-[88dvh] w-full max-w-none overflow-hidden rounded-t-2xl bg-surface-2 p-0 text-text shadow-none backdrop:bg-black/60 open:flex open:animate-sheet-in open:flex-col sm:inset-0 sm:m-auto sm:h-fit sm:max-w-md sm:rounded-2xl"
     >
       <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-3">
-        <h2 id={titleId} className="text-lg font-bold">
+        <h2 id={titleId} className="min-w-0 text-lg font-bold [overflow-wrap:anywhere]">
           {title}
         </h2>
         <IconButton icon="close" label="Close" onClick={onClose} />

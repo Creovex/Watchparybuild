@@ -29,19 +29,35 @@ export function SiteHeader({ profile }: { profile?: HeaderProfile | null }) {
             </Link>
             <Link
               href="/new"
-              className="hidden min-h-11 items-center rounded-lg px-3 hover:bg-surface-3 sm:inline-flex"
+              className="hidden min-h-11 items-center rounded-lg px-3 hover:bg-surface-3 lg:inline-flex"
             >
               New room
             </Link>
             <Link
+              href="/android"
+              className="hidden min-h-11 items-center rounded-lg px-3 hover:bg-surface-3 md:inline-flex"
+            >
+              Android app
+            </Link>
+            <Link
               href="/settings"
+              aria-label="Account settings"
               className="inline-flex min-h-11 items-center gap-2 rounded-lg py-1 pl-1 pr-3 hover:bg-surface-3"
             >
               <Avatar name={profile.display_name} src={profile.avatar_url} size={32} />
-              <span className="max-w-[10rem] truncate">{profile.display_name}</span>
+              <span className="hidden max-w-[10rem] truncate lg:inline">
+                {profile.display_name}
+              </span>
             </Link>
           </nav>
-        ) : null}
+        ) : (
+          <Link
+            href="/android"
+            className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold hover:bg-surface-3"
+          >
+            Android app
+          </Link>
+        )}
       </div>
     </header>
   );

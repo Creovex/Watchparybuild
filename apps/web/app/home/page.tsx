@@ -45,13 +45,6 @@ export default async function HomePage() {
       />
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-4 py-8 sm:px-6 lg:py-12">
         <InstallHint />
-        <MovieShelf />
-        <section
-          aria-label="Join a room"
-          className="rounded-xl bg-surface-1 p-4 ring-1 ring-line sm:p-5 lg:max-w-xl"
-        >
-          <JoinByLink />
-        </section>
         <section className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="flex flex-col gap-2">
             <p className="slate">Signed in as {profile?.display_name ?? user.email}</p>
@@ -64,6 +57,14 @@ export default async function HomePage() {
             <Icon name="play" size={20} />
             Start a room
           </Link>
+        </section>
+
+        <MovieShelf />
+        <section
+          aria-label="Join a room"
+          className="rounded-xl bg-surface-1 p-4 ring-1 ring-line sm:p-5 lg:max-w-xl"
+        >
+          <JoinByLink />
         </section>
 
         <section aria-labelledby="open-rooms" className="flex flex-col gap-3">
@@ -80,16 +81,16 @@ export default async function HomePage() {
               </p>
             </div>
           ) : (
-            <ul className="grid gap-3 md:grid-cols-2">
+            <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {open.map((room) => (
-                <li key={room.id}>
+                <li key={room.id} className="min-w-0">
                   <Link
                     href={`/r/${room.slug}`}
-                    className="group flex min-h-24 items-center gap-4 rounded-xl bg-surface-1 px-4 py-4 ring-1 ring-line transition-colors hover:bg-surface-2 hover:ring-line-strong"
+                    className="group flex min-h-24 min-w-0 items-center gap-3 rounded-xl bg-surface-1 px-4 py-4 ring-1 ring-line transition-colors hover:bg-surface-2 hover:ring-line-strong"
                   >
                     <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                      <p className="flex items-center gap-2">
-                        <span className="truncate text-lg font-bold">{room.title}</span>
+                      <p className="flex min-w-0 items-center gap-2">
+                        <span className="min-w-0 truncate text-lg font-bold">{room.title}</span>
                         {room.host_id === user.id ? (
                           <Badge tone="amber">
                             <Icon name="crown" size={12} />
@@ -106,7 +107,7 @@ export default async function HomePage() {
                         {room.locked ? <span>Locked</span> : null}
                       </p>
                     </div>
-                    <div className="flex flex-col items-end gap-1">
+                    <div className="flex shrink-0 flex-col items-end gap-1">
                       <SeatRow cap={room.room_cap} taken={presentCount.get(room.id) ?? 0} size={18} />
                       <span className="text-xs text-faint">
                         {presentCount.get(room.id) ?? 0} of {room.room_cap} here

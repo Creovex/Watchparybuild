@@ -375,3 +375,5 @@ See `docs/movie-implementation.md` for the executed checks and remaining gates. 
 ## G54: Mesh voice browser acceptance
 
 The current local browser run passed thirteen legacy checks and failed two. E6 reproduced G43. E7 remained in the connecting state for mesh voice instead of reaching connected. Unit voice checks passed, but that does not establish a working browser connection on this network. Investigate browser signaling and connectivity, then rerun E7 and the real-phone voice checks before claiming the full acceptance suite passes.
+
+The flow review traced E7: both clients exchanged offer and answer, but produced no media connection candidates. Managed Chromium sets `WebRtcIPHandling` to `disable_non_proxied_udp`, preventing the direct media used by the local test. The policy was not changed. This check remains blocked until a permitted relay or real-device network is available. E6 was improved to wait for actual guest seeks rather than fixed delays; its focused run passed, with final regression recorded separately.

@@ -61,3 +61,11 @@ pnpm exec playwright test -c playwright.movies.config.ts
 This runner covers browser upload, two-member playback, deletion during a room and permission refusal. Use temporary test accounts with a small quota and remove them and their test rooms afterward. Session files and test traces must not be committed. Do not describe unrun tests as passed.
 
 For local storage, the private state file may also specify `backend` and `functions` origins. Run the web app with the corresponding public Supabase configuration, `NEXT_PUBLIC_FUNCTIONS_URL` and `NEXT_PUBLIC_R2_ORIGIN`. Configure the function server's R2 endpoint and credentials for the emulator only. Give the temporary uploader at least fifty million bytes of quota for the three-part recovery fixture. The runner creates that fixture under the ignored `e2e/.auth` directory. Moto does not prove provider signature enforcement; retain the separate real R2 proof for that check.
+
+## Flow review
+
+The subsequent review fixed same-tab pause and resume, duplicate storage and room actions, library loading retry, preview and invitation keyboard access, and phone overflow in room cards and file pickers. Android is discoverable from public navigation. Its page distinguishes an unpublished app from a download lookup failure, and can find an Android release when a newer unrelated release has no app asset.
+
+All eight movie browser checks passed using local compatible storage. They cover browser upload into a private room, invitation copy and keyboard dismissal, deletion during playback, upload permission refusal, reopening an interrupted multipart upload, same-tab pause and resume without another reservation, invalid-file recovery, long titles at phone and desktop widths, and synchronized play, pause and seek. Screenshots were inspected at phone and desktop sizes. The three added download selection checks passed alongside the existing unit suites, for 439 checks total.
+
+The timed-comment check now waits for the guest to receive each seek before pinning or playing, rather than relying on fixed delays. Its focused run passed. Voice diagnostics established that signaling succeeds but the managed browser's network policy prevents the direct media used by the local test; that policy was preserved. Final regression and deployment results are tracked in `docs/flow-review-progress.md`.

@@ -161,7 +161,7 @@ export async function uploadMovie(args: {
             if (attempt < 5) await sleep(1000 * 2 ** attempt, signal);
           }
           if (!success)
-            throw new Error('The connection stopped. Choose this file again to resume the upload.');
+            throw new Error('The upload connection stopped. Press Resume upload to try again with the same file.');
           completed += blob.size;
           args.progress(completed, file.size);
         }

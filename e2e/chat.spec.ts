@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { clientFor, closeAll, createRoom, enterRoom, newUser, signedIn, stubAct, waitForStub } from './helpers';
+import { clientFor, closeAll, createRoom, enterRoom, newUser, signedIn, stubAct, stubPosition, waitForStub } from './helpers';
 
 test('E6: chat arrives within 1 second, a timed comment reappears when the other member passes it, reactions float', async ({ browser }) => {
   const [hostUser, guestUser] = await Promise.all([newUser('Ana Lindqvist'), newUser('Jamie Moss')]);
@@ -20,13 +20,13 @@ test('E6: chat arrives within 1 second, a timed comment reappears when the other
 
     // Timed comment: pinned at the guest's position, shown again when the host passes it.
     await stubAct(host.page, { seek: 10 });
-    await host.page.waitForTimeout(1500);
+    await expect.poll(async () => Math.abs((await stubPosition(guest.page)).position - 10)).toBeLessThan(0.3);
     await guest.page.getByTestId('pin-toggle').click();
     await guest.page.getByTestId('chat-input').fill('Watch this bit');
     await guest.page.getByTestId('chat-input').press('Enter');
     await expect(host.page.getByTestId('chat-log').getByText('Watch this bit')).toBeVisible();
     await stubAct(host.page, { seek: 7 });
-    await host.page.waitForTimeout(800);
+    await expect.poll(async () => Math.abs((await stubPosition(guest.page)).position - 7)).toBeLessThan(0.3);
     await stubAct(host.page, 'play');
     await expect(host.page.getByTestId('timed-popup')).toContainText('Watch this bit', { timeout: 8000 });
 

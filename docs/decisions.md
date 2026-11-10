@@ -423,3 +423,13 @@ Date: 11 October 2026 (DEFAULT, asked for as "ease of life" improvements)
 2. The screen stays on while a room is open (the Screen Wake Lock API), because a phone that locks mid film drops voice and falls out of sync. Browsers release the lock when the page is hidden, so it is asked for again when the page returns. Where the browser has none, or refuses (low power mode), nothing changes.
 3. The rooms page suggests adding the app to the home screen once, until dismissed: the steps on iPhone, the browser's own install button in Chrome and Edge.
 4. A new room's name starts as "First name's room" and, while nobody has typed a name, takes a pasted YouTube video's title from YouTube's public oEmbed endpoint. The lookup runs on the server (`/api/youtube-title`), accepts only a valid video id, and keeps the page's Content Security Policy limited to this site.
+
+## Movie storage proof
+
+The owner approved private Cloudflare R2 storage, uploads restricted to their account with a shared nine billion byte allowance, downloadable Android packaging under `app.synvello.android`, and direct releases through `main` to the existing Vercel site. Previously issued playback links lasting six hours are accepted.
+
+The implementation begins with a disabled owner-only storage proof. Its function uses the existing authentication and request pipeline and confines every object to the caller's proof namespace. It does not expose production upload endpoints or change the database. Browser checks must prove R2 signing, readable part identifiers, rejected incorrect lengths and partial reads before the movie library is enabled. Proof objects need explicit cleanup; incomplete parts also have a bucket lifecycle rule.
+
+The signing dependency `aws4fetch` uses the MIT licence. Its exact import pin and package integrity are retained in the Deno lockfile. Part requests sign the content length; only a live browser test can confirm that the provider enforces it. Movie data never needs to pass through an application function.
+
+The complete movie library, quota migration, synchronized movie player and Android release remain outstanding while the initial external proof is blocked. An owner-only proof is not a finished upload feature.

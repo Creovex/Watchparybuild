@@ -91,3 +91,7 @@ Then load `apps/extension/dist` unpacked in `chrome://extensions` or `edge://ext
 4. **Extension.** Rebuild it with `NEXT_PUBLIC_SITE_URL` set to the preview domain so its `externally_connectable` list includes it.
 
 Vercel Hobby is for non commercial use and Supabase free projects pause after a week without activity (gaps G6 and G7); both need paid plans before a public launch.
+
+## Movie storage work
+
+The uploaded movie feature is in progress. [Private storage setup](infrastructure/r2/README.md) contains the Cloudflare bucket configuration and the disabled owner-only browser proof. Movie uploads, library quotas and the Android release are not yet available. The outstanding proofs and deployment prerequisites are tracked as G44 to G53 in [gaps](docs/gaps.md).

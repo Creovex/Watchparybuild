@@ -317,3 +317,43 @@ Found in: a full end to end run on 11 October 2026, after the web app was deploy
 What is unknown: Why the host sometimes sees no pop up for a timed comment it plays past. The guest is at the pinned position when it pins (checked by polling the guest's player), and the comment reaches the host's chat, but after the host jumps back three seconds and plays, the pop up does not appear within 8 seconds in roughly a third of runs. It fails the same way on the code before the iPhone changes of the same day, so it is not caused by them. Likely suspects: the host's jump and play being treated as a seek, so the crossing is not counted, or the stub player's position updates.
 Effect on the build: Acceptance criterion 11 (E6) passes only some of the time, so it is reported NOT DONE until this is found.
 Next action: The lead traces `passedComments` against the host's position samples during a failing run and fixes the cause, in the app or in the test.
+
+## G44: Movie storage account and deployment access
+
+R2 activation, a private Standard bucket and its scoped credentials remain to be supplied by the account owner. This session has no R2, Supabase deployment or Vercel project credentials. The GitHub integration refuses access to repository Actions secrets. The bucket configuration and disabled owner-only storage proof are implemented; real storage, browser seeking and signed part-length enforcement remain unverified. See `infrastructure/r2/README.md`.
+
+## G45: Android distribution and signing
+
+The chosen package is `app.synvello.android`, named Synvello, distributed as an Android application package (APK) downloaded from the website. Signing credentials and current developer distribution requirements remain unverified. No signed application or Android release exists yet.
+
+## G46: Android device proof
+
+Google sign in, microphone, camera and private room links must be tested on a real phone in the Trusted Web Activity, the Android shell that opens the website in Chrome. Do not infer these results from a desktop browser test.
+
+## G47: Real R2 range reads and upload sizes
+
+The storage client signs the part length and the browser proof checks rejected incorrect lengths and partial reads. These are unit tested but not tested against a real R2 bucket. The complete upload feature remains gated on this proof.
+
+## G48: Signing in deployed functions
+
+The signing client and disabled owner-only proof handler are implemented and tested locally. Deploying the function and running the browser proof still require Supabase and R2 access. Local fake responses do not close this gap.
+
+## G49: Android room link fragments
+
+A private room key in the URL fragment must survive opening a verified Android app link and Google sign in. Real-device results remain outstanding. Do not move private keys into query strings as a workaround.
+
+## G50: Movie playback links can be copied
+
+ACCEPTED by the owner: issued playback links may remain usable for six hours. Removing a member prevents obtaining another link but cannot revoke a link already issued.
+
+## G51: Fullscreen reactions on iPhone
+
+Native video fullscreen may hide page reactions on iPhone. Actual device behavior and the fallback remain to be checked during player implementation.
+
+## G52: Rights to movie uploads
+
+The owner must upload only movies they have the right to share. Terms and deletion behavior must be updated with the movie library implementation. Uploads are restricted to the owner's account; everyone else's upload quota stays zero.
+
+## G53: Production branch routing
+
+The live site is `https://synvello.vercel.app`. The repository previously used `claude/clever-wozniak-27gkxq` as its default branch and had no `main`. The owner requests `main` for production. Creating that branch does not establish Vercel's configured production branch; deployment status and the exact production commit must be checked after pushing.

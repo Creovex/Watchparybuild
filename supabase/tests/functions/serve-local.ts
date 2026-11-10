@@ -12,11 +12,13 @@ import { createAdminClient, userClientFactory } from '../../functions/_shared/cl
 import { createDeleteAccountHandler } from '../../functions/delete-account/handler.ts';
 import { createLiveKitTokenHandler } from '../../functions/livekit-token/handler.ts';
 import { createModerateHandler } from '../../functions/moderate/handler.ts';
+import { createStorageProofHandler } from '../../functions/movie-storage-proof/handler.ts';
 import { createTurnCredentialsHandler } from '../../functions/turn-credentials/handler.ts';
 
 const env = Deno.env;
 const admin = createAdminClient(env);
 const handlers: Record<string, (req: Request) => Promise<Response>> = {
+  'movie-storage-proof': createStorageProofHandler({ env, admin }),
   'turn-credentials': createTurnCredentialsHandler({ env, admin }),
   'livekit-token': createLiveKitTokenHandler({ env, admin }),
   moderate: createModerateHandler({ env, admin, createUserClient: userClientFactory(env) }),

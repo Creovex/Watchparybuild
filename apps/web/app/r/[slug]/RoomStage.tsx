@@ -35,12 +35,22 @@ import { DESKTOP_QUERY, PHONE_LANDSCAPE_QUERY, useMediaQuery } from '@/lib/use-m
 import { seenOnce } from '@/lib/once';
 import { useWakeLock } from '@/lib/use-wake-lock';
 import { ExtensionSlot, HandedOver } from './Handover';
+import { MovieInvite } from './MovieInvite';
+import { MovieScreen } from './MovieScreen';
 import { Player } from './Player';
 import type { RoomMe } from './RoomEntry';
 
 type Tab = 'chat' | 'people' | 'sync';
 
-export function RoomStage({ controller, me, onRejoin }: { controller: RoomController; me: RoomMe; onRejoin: () => void }) {
+export function RoomStage({
+  controller,
+  me,
+  onRejoin,
+}: {
+  controller: RoomController;
+  me: RoomMe;
+  onRejoin: () => void;
+}) {
   const state = useRoom(controller);
   const toast = useToast();
   const desktop = useMediaQuery(DESKTOP_QUERY);
@@ -52,8 +62,14 @@ export function RoomStage({ controller, me, onRejoin }: { controller: RoomContro
   useDucking(controller, voice, duckLevel);
   // Stable callbacks: a new function each render would detach and re-attach every member's media.
   const voiceAttach = voice.attach;
-  const attachAudio = useCallback((id: string, el: HTMLMediaElement) => voiceAttach(id, 'audio', el), [voiceAttach]);
-  const attachVideo = useCallback((id: string, el: HTMLMediaElement) => voiceAttach(id, 'video', el), [voiceAttach]);
+  const attachAudio = useCallback(
+    (id: string, el: HTMLMediaElement) => voiceAttach(id, 'audio', el),
+    [voiceAttach],
+  );
+  const attachVideo = useCallback(
+    (id: string, el: HTMLMediaElement) => voiceAttach(id, 'video', el),
+    [voiceAttach],
+  );
 
   const [tab, setTab] = useState<Tab>('chat');
   const [sheet, setSheet] = useState<'host' | 'mine' | 'voice' | 'chat' | null>(null);
@@ -65,7 +81,8 @@ export function RoomStage({ controller, me, onRejoin }: { controller: RoomContro
   useEffect(
     () =>
       controller.onNotice((notice) => {
-        if (notice.code) toast(errorSentence(notice.code, { roomCap: controller.store.get().room?.room_cap }), notice.tone);
+        if (notice.code)
+          toast(errorSentence(notice.code, { roomCap: controller.store.get().room?.room_cap }), notice.tone);
         else if (notice.message) toast(notice.message, notice.tone);
       }),
     [controller, toast],
@@ -80,12 +97,15 @@ export function RoomStage({ controller, me, onRejoin }: { controller: RoomContro
 
   const room = state.room;
   const timed = useMemo(() => state.messages.filter((m) => m.kind === 'timed'), [state.messages]);
-  const othersInVoice = state.presence.filter((p) => p.user_id !== me.id && p.voice !== 'off').map((p) => p.user_id);
+  const othersInVoice = state.presence
+    .filter((p) => p.user_id !== me.id && p.voice !== 'off')
+    .map((p) => p.user_id);
   if (!room) return null;
 
-  if (state.fatal === 'handed_over') return <HandedOver controller={controller} room={room} onReturned={onRejoin} />;
+  if (state.fatal === 'handed_over')
+    return <HandedOver controller={controller} room={room} onReturned={onRejoin} />;
 
-  const youtube = room.source === 'youtube';
+  const youtube = room.source === 'youtube' || room.source === 'upload';
   const isHost = room.host_id === me.id;
   const nameOf = (id: string | null) => controller.nameOf(id);
   const duration = controller.engineHost?.getDuration() ?? null;
@@ -97,7 +117,13 @@ export function RoomStage({ controller, me, onRejoin }: { controller: RoomContro
   const duckingAvailable = Boolean(controller.engineHost?.capabilities.volume);
 
   const band = (
-    <ReactionBand reactions={state.reactions} popups={state.popups} timed={timed} duration={duration} nameOf={nameOf} />
+    <ReactionBand
+      reactions={state.reactions}
+      popups={state.popups}
+      timed={timed}
+      duration={duration}
+      nameOf={nameOf}
+    />
   );
   const overlayBand = (
     <ReactionBand
@@ -110,7 +136,10 @@ export function RoomStage({ controller, me, onRejoin }: { controller: RoomContro
       className="!absolute inset-x-0 bottom-0"
     />
   );
-  const extensionSlot = isPaidSource(room.source) && desktop ? <ExtensionSlot controller={controller} room={room} voice={voice} onRejoin={onRejoin} /> : null;
+  const extensionSlot =
+    isPaidSource(room.source) && desktop ? (
+      <ExtensionSlot controller={controller} room={room} voice={voice} onRejoin={onRejoin} />
+    ) : null;
 
   const chat = (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -121,7 +150,10 @@ export function RoomStage({ controller, me, onRejoin }: { controller: RoomContro
   const people = <PeopleList onMemberMenu={setMemberMenu} speaking={voice.speaking} />;
   const tabs: Array<{ id: Tab; label: string }> = [
     { id: 'chat', label: 'Chat' },
-    { id: 'people', label: `People · ${state.members.filter((m) => m.state === 'joined' && m.present).length}` },
+    {
+      id: 'people',
+      label: `People · ${state.members.filter((m) => m.state === 'joined' && m.present).length}`,
+    },
     ...(!youtube && !desktop ? [{ id: 'sync' as Tab, label: 'Sync' }] : []),
   ];
 
@@ -176,7 +208,11 @@ export function RoomStage({ controller, me, onRejoin }: { controller: RoomContro
 
   const topBar = (
     <header className="safe-top flex min-h-14 shrink-0 items-center gap-2 border-b border-line bg-ink px-2 lg:col-span-2 lg:px-4">
-      <Link href="/home" aria-label="Your rooms" className="inline-flex size-11 items-center justify-center rounded-lg hover:bg-surface-3">
+      <Link
+        href="/home"
+        aria-label="Your rooms"
+        className="inline-flex size-11 items-center justify-center rounded-lg hover:bg-surface-3"
+      >
         <Icon name="chevronLeft" size={22} />
       </Link>
       <div className="min-w-0 flex-1">
@@ -190,8 +226,22 @@ export function RoomStage({ controller, me, onRejoin }: { controller: RoomContro
           {state.status === 'reconnecting' ? ' · Reconnecting' : ''}
         </p>
       </div>
+      {isHost ? (
+        <MovieInvite
+          controller={controller}
+          seats={state.members.filter((m) => m.state === 'joined' && m.present).length}
+          cap={room.room_cap}
+        />
+      ) : null}
       <IconButton icon="volume" label="My settings" onClick={() => setSheet('mine')} />
-      {isHost ? <IconButton icon="sliders" label="Room settings" onClick={() => setSheet('host')} data-testid="room-settings" /> : null}
+      {isHost ? (
+        <IconButton
+          icon="sliders"
+          label="Room settings"
+          onClick={() => setSheet('host')}
+          data-testid="room-settings"
+        />
+      ) : null}
     </header>
   );
 
@@ -203,7 +253,10 @@ export function RoomStage({ controller, me, onRejoin }: { controller: RoomContro
           <div className="flex min-h-0 items-center justify-center">
             {youtube ? (
               <div className="h-full max-h-dvh w-full [&_[data-testid=player]]:!max-w-[calc(100dvh*16/9)]">
-                <Player controller={controller} room={room} />
+                <MovieScreen>
+                  <Player controller={controller} room={room} />
+                  {room.source === 'upload' ? band : null}
+                </MovieScreen>
               </div>
             ) : (
               <div className="w-full">
@@ -217,7 +270,12 @@ export function RoomStage({ controller, me, onRejoin }: { controller: RoomContro
             <RecentChat onOpen={() => setSheet('chat')} />
             <div className="flex items-center justify-around border-t border-line py-1">
               <MicButton voice={voice} onJoinVoice={() => setSheet('voice')} compact />
-              <IconButton icon="smile" label="React" onClick={() => setTrayOpen((o) => !o)} tone={trayOpen ? 'active' : 'default'} />
+              <IconButton
+                icon="smile"
+                label="React"
+                onClick={() => setTrayOpen((o) => !o)}
+                tone={trayOpen ? 'active' : 'default'}
+              />
               <IconButton icon="chat" label="Open chat" onClick={() => setSheet('chat')} />
             </div>
             {trayOpen ? (
@@ -239,8 +297,10 @@ export function RoomStage({ controller, me, onRejoin }: { controller: RoomContro
         <main className="flex min-h-0 flex-1 flex-col lg:overflow-y-auto">
           {youtube ? (
             <>
-              <Player controller={controller} room={room} />
-              {band}
+              <MovieScreen>
+                <Player controller={controller} room={room} />
+                {band}
+              </MovieScreen>
             </>
           ) : desktop ? (
             <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4">
@@ -270,8 +330,20 @@ export function RoomStage({ controller, me, onRejoin }: { controller: RoomContro
           ) : (
             <>
               <TabBar tabs={tabs} value={tab} onChange={setTab} />
-              <div className="flex min-h-0 flex-1 flex-col" role="tabpanel" aria-label={tabs.find((t) => t.id === tab)?.label}>
-                {tab === 'chat' ? chat : tab === 'people' ? people : <div className="overflow-y-auto p-3"><CueControls extensionSlot={extensionSlot} /></div>}
+              <div
+                className="flex min-h-0 flex-1 flex-col"
+                role="tabpanel"
+                aria-label={tabs.find((t) => t.id === tab)?.label}
+              >
+                {tab === 'chat' ? (
+                  chat
+                ) : tab === 'people' ? (
+                  people
+                ) : (
+                  <div className="overflow-y-auto p-3">
+                    <CueControls extensionSlot={extensionSlot} />
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -299,7 +371,15 @@ export function RoomStage({ controller, me, onRejoin }: { controller: RoomContro
   );
 }
 
-function TabBar({ tabs, value, onChange }: { tabs: Array<{ id: Tab; label: string }>; value: Tab; onChange: (t: Tab) => void }) {
+function TabBar({
+  tabs,
+  value,
+  onChange,
+}: {
+  tabs: Array<{ id: Tab; label: string }>;
+  value: Tab;
+  onChange: (t: Tab) => void;
+}) {
   return (
     <div role="tablist" aria-label="Room panels" className="flex shrink-0 border-b border-line px-2">
       {tabs.map((t) => (
@@ -315,20 +395,48 @@ function TabBar({ tabs, value, onChange }: { tabs: Array<{ id: Tab; label: strin
           )}
         >
           {t.label}
-          {value === t.id ? <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-amber" aria-hidden="true" /> : null}
+          {value === t.id ? (
+            <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-amber" aria-hidden="true" />
+          ) : null}
         </button>
       ))}
     </div>
   );
 }
 
-function MicButton({ voice, onJoinVoice, compact = false }: { voice: RoomVoice; onJoinVoice: () => void; compact?: boolean }) {
+function MicButton({
+  voice,
+  onJoinVoice,
+  compact = false,
+}: {
+  voice: RoomVoice;
+  onJoinVoice: () => void;
+  compact?: boolean;
+}) {
   const inVoice = voice.state !== 'idle';
   if (voice.state === 'failed') {
-    return <IconButton icon="sync" label="Rejoin voice" showLabel={!compact} tone="danger" onClick={() => voice.join()} />;
+    return (
+      <IconButton
+        icon="sync"
+        label="Rejoin voice"
+        showLabel={!compact}
+        tone="danger"
+        onClick={() => voice.join()}
+      />
+    );
   }
-  if (!inVoice) return <IconButton icon="mic" label="Join voice" showLabel={!compact} onClick={onJoinVoice} data-testid="join-voice" />;
-  if (voice.local.hostMuted) return <IconButton icon="micOff" label="The host muted you" showLabel={!compact} tone="muted" disabled />;
+  if (!inVoice)
+    return (
+      <IconButton
+        icon="mic"
+        label="Join voice"
+        showLabel={!compact}
+        onClick={onJoinVoice}
+        data-testid="join-voice"
+      />
+    );
+  if (voice.local.hostMuted)
+    return <IconButton icon="micOff" label="The host muted you" showLabel={!compact} tone="muted" disabled />;
   return (
     <IconButton
       icon={voice.local.micEnabled ? 'mic' : 'micOff'}
@@ -377,7 +485,14 @@ function RoomControls({
       {inVoice ? (
         <IconButton icon="headphones" label="Leave voice" showLabel onClick={() => void voice.leave()} />
       ) : null}
-      <IconButton icon="smile" label="React" showLabel tone={trayOpen ? 'active' : 'default'} aria-expanded={trayOpen} onClick={onTray} />
+      <IconButton
+        icon="smile"
+        label="React"
+        showLabel
+        tone={trayOpen ? 'active' : 'default'}
+        aria-expanded={trayOpen}
+        onClick={onTray}
+      />
       <IconButton
         icon="leave"
         label={leaving ? 'Leaving' : 'Leave'}
@@ -394,12 +509,23 @@ function RoomControls({
   );
 }
 
-function VoiceSheet({ open, onClose, voice, desktop }: { open: boolean; onClose: () => void; voice: RoomVoice; desktop: boolean }) {
+function VoiceSheet({
+  open,
+  onClose,
+  voice,
+  desktop,
+}: {
+  open: boolean;
+  onClose: () => void;
+  voice: RoomVoice;
+  desktop: boolean;
+}) {
   const [tip, setTip] = useState<string | null>(null);
   useEffect(() => {
     if (!open) return;
     if (desktop && !seenOnce('headphones')) setTip("Use headphones so others don't hear the movie twice.");
-    else if (isIOS() && !seenOnce('ios-lock')) setTip('Voice stops when your screen locks or you switch to another app.');
+    else if (isIOS() && !seenOnce('ios-lock'))
+      setTip('Voice stops when your screen locks or you switch to another app.');
     else setTip(null);
   }, [open, desktop]);
   return (
@@ -425,7 +551,10 @@ function VoiceSheet({ open, onClose, voice, desktop }: { open: boolean; onClose:
       }
     >
       <div className="flex flex-col gap-3">
-        <p className="text-muted">Your browser will ask to use your microphone so the room can hear you. Your camera stays off until you turn it on.</p>
+        <p className="text-muted">
+          Your browser will ask to use your microphone so the room can hear you. Your camera stays off until
+          you turn it on.
+        </p>
         {tip ? (
           <p className="flex items-start gap-2 rounded-lg bg-surface-1 px-3 py-2.5 text-sm">
             <Icon name="headphones" size={18} className="mt-0.5 shrink-0 text-amber" />
@@ -443,13 +572,21 @@ function RecentChat({ onOpen }: { onOpen: () => void }) {
   const { messages } = useRoom(controller);
   const recent = messages.filter((m) => m.kind !== 'system').slice(-3);
   return (
-    <button type="button" onClick={onOpen} className="flex min-h-0 flex-1 flex-col justify-end gap-1 overflow-hidden px-3 py-2 text-left" aria-label="Open chat">
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex min-h-0 flex-1 flex-col justify-end gap-1 overflow-hidden px-3 py-2 text-left"
+      aria-label="Open chat"
+    >
       {recent.map((m) => (
-        <p key={m.id} className="animate-[fade-out_5000ms_linear_forwards] truncate text-sm motion-reduce:animate-none">
-          <span className="font-semibold">{controller.nameOf(m.user_id)}</span> <span className="text-muted">{m.body}</span>
+        <p
+          key={m.id}
+          className="animate-[fade-out_5000ms_linear_forwards] truncate text-sm motion-reduce:animate-none"
+        >
+          <span className="font-semibold">{controller.nameOf(m.user_id)}</span>{' '}
+          <span className="text-muted">{m.body}</span>
         </p>
       ))}
     </button>
   );
 }
-

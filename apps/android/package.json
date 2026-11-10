@@ -1,0 +1,11 @@
+{
+  "name": "@watchparty/android",
+  "private": true,
+  "scripts": {
+    "generate": "NODE_USE_ENV_PROXY=1 node scripts/generate.cjs",
+    "apk": "pnpm run generate && cd generated && ./gradlew --no-daemon --max-workers=2 :app:assembleRelease"
+  },
+  "devDependencies": {
+    "@bubblewrap/cli": "1.27.0"
+  }
+}

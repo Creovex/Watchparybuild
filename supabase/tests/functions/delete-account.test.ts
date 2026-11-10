@@ -12,7 +12,11 @@ function setup() {
     { id: OTHER_ROOM, host_id: GUEST, voice_mode: 'mesh', status: 'open' },
     { id: CLOSED_ROOM, host_id: HOST, voice_mode: 'mesh', status: 'closed' },
   );
-  const handler = createDeleteAccountHandler({ env: testEnv(), admin: db.client() });
+  const handler = createDeleteAccountHandler({
+    env: testEnv(),
+    admin: db.client(),
+    cleanupMovies: async () => {},
+  });
   return { db, handler };
 }
 
@@ -89,6 +93,27 @@ Deno.test('delete-account: internal when the user cannot be deleted', async () =
     assertEquals(res.status, 500);
     assertEquals(await body(res), { ok: false, code: 'internal' });
     assertEquals(errors.lines.length, 1);
+  } finally {
+    errors.restore();
+  }
+});
+
+Deno.test('delete-account: storage cleanup failure preserves the account', async () => {
+  const db = new FakeSupabase();
+  seed(db);
+  const handler = createDeleteAccountHandler({
+    env: testEnv(),
+    admin: db.client(),
+    cleanupMovies: async () => {
+      throw new Error('cleanup pending');
+    },
+  });
+  const errors = captureErrors();
+  try {
+    const response = await handler(post({}, { jwt: 'host-jwt' }));
+    assertEquals(response.status, 500);
+    assertEquals(db.deletedUsers, []);
+    assertEquals(db.updates, []);
   } finally {
     errors.restore();
   }

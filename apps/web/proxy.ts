@@ -1,3 +1,4 @@
+import { DEFAULT_R2_ORIGIN } from '@/lib/deployment';
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
@@ -5,7 +6,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 // away from pages that need an account, and sets the Content Security Policy (CSP) with a fresh
 // nonce so only the app's own scripts and the YouTube player API can run.
 
-const SIGNED_IN_ONLY = ['/home', '/new', '/settings', '/storage-proof'];
+const SIGNED_IN_ONLY = ['/home', '/new', '/settings', '/storage-proof', '/movies'];
 
 function origins(raw: string | undefined, socket: boolean): string[] {
   if (!raw) return [];
@@ -25,15 +26,28 @@ function contentSecurityPolicy(nonce: string): string {
   const supabase = origins(process.env.NEXT_PUBLIC_SUPABASE_URL, true);
   const livekit = origins(process.env.LIVEKIT_URL, true);
   const functions = origins(process.env.NEXT_PUBLIC_FUNCTIONS_URL, false);
-  const r2 = origins(process.env.NEXT_PUBLIC_R2_ORIGIN, false);
+  const r2 = origins(process.env.NEXT_PUBLIC_R2_ORIGIN || DEFAULT_R2_ORIGIN, false);
   // The YouTube IFrame Player API loads its widget script and its player frame from www.youtube.com
   // only (checked in the browser console, recorded in docs/decisions.md).
   const youtube = ['https://www.youtube.com'];
   const directives: Record<string, string[]> = {
     'default-src': ["'self'"],
-    'script-src': ["'self'", `'nonce-${nonce}'`, "'strict-dynamic'", ...youtube, ...(dev ? ["'unsafe-eval'"] : [])],
+    'script-src': [
+      "'self'",
+      `'nonce-${nonce}'`,
+      "'strict-dynamic'",
+      ...youtube,
+      ...(dev ? ["'unsafe-eval'"] : []),
+    ],
     'style-src': ["'self'", "'unsafe-inline'"],
-    'img-src': ["'self'", 'data:', 'blob:', 'https://i.ytimg.com', 'https://lh3.googleusercontent.com'],
+    'img-src': [
+      "'self'",
+      'data:',
+      'blob:',
+      'https://i.ytimg.com',
+      'https://lh3.googleusercontent.com',
+      ...supabase.filter((origin) => origin.startsWith('http')),
+    ],
     'font-src': ["'self'"],
     'connect-src': ["'self'", ...supabase, ...livekit, ...functions, ...r2],
     'frame-src': ['https://www.youtube.com'],
@@ -107,7 +121,8 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     {
-      source: '/((?!_next/static|_next/image|favicon.ico|icon|apple-icon|pwa-icon/|manifest.webmanifest|workers/|e2e/).*)',
+      source:
+        '/((?!_next/static|_next/image|favicon.ico|icon|apple-icon|pwa-icon/|manifest.webmanifest|workers/|e2e/|\\.well-known/).*)',
       missing: [
         { type: 'header', key: 'next-router-prefetch' },
         { type: 'header', key: 'purpose', value: 'prefetch' },

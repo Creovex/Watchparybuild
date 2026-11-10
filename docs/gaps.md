@@ -320,7 +320,7 @@ Next action: The lead traces `passedComments` against the host's position sample
 
 ## G44: Movie storage account and deployment access
 
-R2 activation, a private Standard bucket and its scoped credentials remain to be supplied by the account owner. This session has no R2, Supabase deployment or Vercel project credentials. The GitHub integration refuses access to repository Actions secrets. The bucket configuration and disabled owner-only storage proof are implemented; real storage, browser seeking and signed part-length enforcement remain unverified. See `infrastructure/r2/README.md`.
+The private R2 bucket and its scoped credentials are configured, and Supabase deployment access works. Real multipart uploads, signed part-length enforcement and partial reads passed. Browser cross-origin resource sharing (CORS) headers are still absent, and the bucket token cannot edit configuration. The owner must apply `infrastructure/r2/cors.json` and confirm the requested one-day incomplete-upload cleanup rule. Vercel administration and repository Actions secrets remain unavailable through the integration.
 
 ## G45: Android distribution and signing
 
@@ -332,11 +332,11 @@ Google sign in, microphone, camera and private room links must be tested on a re
 
 ## G47: Real R2 range reads and upload sizes
 
-The storage client signs the part length and the browser proof checks rejected incorrect lengths and partial reads. These are unit tested but not tested against a real R2 bucket. The complete upload feature remains gated on this proof.
+The deployed proof completed a two hundred million byte upload against real R2, rejected an incorrect part length, and returned correct partial reads from the middle and end. Actual two-browser movie playback also passed play, pause, seek and the specified drift threshold. Browser upload and readable upload identifiers remain gated on G44.
 
 ## G48: Signing in deployed functions
 
-The signing client and disabled owner-only proof handler are implemented and tested locally. Deploying the function and running the browser proof still require Supabase and R2 access. Local fake responses do not close this gap.
+The signing client and production movie functions are deployed with gateway authentication enabled. Live API checks passed upload, completion retry, quota refusal and authorized playback. Browser upload remains gated on G44.
 
 ## G49: Android room link fragments
 
@@ -352,8 +352,26 @@ Native video fullscreen may hide page reactions on iPhone. Actual device behavio
 
 ## G52: Rights to movie uploads
 
-The owner must upload only movies they have the right to share. Terms and deletion behavior must be updated with the movie library implementation. Uploads are restricted to the owner's account; everyone else's upload quota stays zero.
+The upload-rights notice and deletion behavior are implemented. Upload permission is restricted to the two accounts selected by the owner; other real accounts have no quota. The broader placeholder terms review remains open under G16.
 
 ## G53: Production branch routing
 
 The live site is `https://synvello.vercel.app`. The repository previously used `claude/clever-wozniak-27gkxq` as its default branch and had no `main`. The owner requests `main` for production. Creating that branch does not establish Vercel's configured production branch; deployment status and the exact production commit must be checked after pushing.
+
+## Movie implementation status
+
+G44: the R2 bucket and credential names exist, and the management API is usable. Browser CORS is still missing; applying the checked-in policy is required before browser upload acceptance. The narrow object token correctly refused attempts to change bucket configuration.
+
+G45: the Android project generates and its unsigned release compiles. Permanent signing, repository secrets and a signed downloadable release remain open.
+
+G46 and G49: real-phone sign in, media permissions and verified private room links remain open.
+
+G47 and G48: the deployed signing and provider proof passed multipart upload, exact part length rejection and partial reads. Browser upload remains separately gated on G44.
+
+G50 remains accepted. G51 still needs iPhone verification. The upload-rights notice for G52 is implemented; the broader placeholder terms review remains open under G16. G53 still requires production branch routing and verification of the live commit.
+
+See `docs/movie-implementation.md` for the executed checks and remaining gates. All local database suites and concurrency checks passed. The legacy browser run reproduced G43, so a full browser pass is not claimed.
+
+## G54: Mesh voice browser acceptance
+
+The current local browser run passed thirteen legacy checks and failed two. E6 reproduced G43. E7 remained in the connecting state for mesh voice instead of reaching connected. Unit voice checks passed, but that does not establish a working browser connection on this network. Investigate browser signaling and connectivity, then rerun E7 and the real-phone voice checks before claiming the full acceptance suite passes.

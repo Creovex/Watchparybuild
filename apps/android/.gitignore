@@ -1,0 +1,6 @@
+generated/
+*.keystore
+*.jks
+*.apk
+*.aab
+.bubblewrap/

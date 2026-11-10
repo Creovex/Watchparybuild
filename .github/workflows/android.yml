@@ -1,0 +1,82 @@
+name: Release Android app
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag
+        required: true
+        type: string
+permissions:
+  contents: write
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_VERSION_CODE: ${{ github.run_number }}
+      ANDROID_VERSION_NAME: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - name: Validate signing configuration
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$ANDROID_VERSION_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { echo 'Invalid release tag' >&2; exit 1; }
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_PASSWORD ANDROID_KEY_ALIAS; do
+            if [ -z "${!name}" ]; then echo "Missing required signing secret: $name" >&2; exit 1; fi
+          done
+      - name: Install pinned workspace dependencies
+        run: |
+          corepack enable
+          corepack pnpm install --frozen-lockfile
+      - name: Generate Android project
+        run: corepack pnpm --filter @watchparty/android generate
+      - name: Install Android platform
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - name: Compile Android package
+        working-directory: apps/android/generated
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon --max-workers=2 :app:assembleRelease
+      - name: Sign and verify package
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          trap 'rm -f "$RUNNER_TEMP/synvello.keystore"' EXIT
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/synvello.keystore"
+          tools="$ANDROID_HOME/build-tools/36.0.0"
+          "$tools/zipalign" -p -f 4 apps/android/generated/app/build/outputs/apk/release/app-release-unsigned.apk "$RUNNER_TEMP/aligned.apk"
+          "$tools/apksigner" sign --ks "$RUNNER_TEMP/synvello.keystore" --ks-key-alias "$ANDROID_KEY_ALIAS" --ks-pass env:ANDROID_KEYSTORE_PASSWORD --key-pass env:ANDROID_KEY_PASSWORD --out synvello.apk "$RUNNER_TEMP/aligned.apk"
+          "$tools/apksigner" verify --verbose --print-certs synvello.apk
+      - name: Verify website signing association
+        run: node apps/android/scripts/verify-association.cjs synvello.apk
+      - name: Publish downloadable package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { echo 'Invalid release tag' >&2; exit 1; }
+          gh release create "$RELEASE_TAG" synvello.apk --target "$GITHUB_SHA" --title 'Synvello for Android' --notes 'Install Synvello to watch together on Android.'

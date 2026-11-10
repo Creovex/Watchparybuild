@@ -15,20 +15,26 @@ select is(
   array[
     'clear_stale_buffering * * * * * select public.clear_stale_buffering()',
     'close_idle_rooms */10 * * * * select public.close_idle_rooms()',
-    'handover_absent_hosts * * * * * select public.handover_absent_hosts()'
+    'handover_absent_hosts * * * * * select public.handover_absent_hosts()',
+    'movie_housekeeping 0 * * * * select public.movie_housekeeping()',
+    'movie_storage_cleanup */10 * * * * select public.movie_cleanup_tick()'
   ],
   'jobs: scheduled every minute, every 10 minutes and every minute'
 );
 select ok(
   not has_function_privilege('authenticated', 'public.handover_absent_hosts()', 'execute')
   and not has_function_privilege('authenticated', 'public.close_idle_rooms()', 'execute')
-  and not has_function_privilege('authenticated', 'public.clear_stale_buffering()', 'execute'),
+  and not has_function_privilege('authenticated', 'public.clear_stale_buffering()', 'execute')
+  and not has_function_privilege('authenticated', 'public.movie_housekeeping()', 'execute')
+  and not has_function_privilege('authenticated', 'public.movie_cleanup_tick()', 'execute'),
   'jobs: signed in users cannot execute the job functions'
 );
 select ok(
   not has_function_privilege('anon', 'public.handover_absent_hosts()', 'execute')
   and not has_function_privilege('anon', 'public.close_idle_rooms()', 'execute')
-  and not has_function_privilege('anon', 'public.clear_stale_buffering()', 'execute'),
+  and not has_function_privilege('anon', 'public.clear_stale_buffering()', 'execute')
+  and not has_function_privilege('anon', 'public.movie_housekeeping()', 'execute')
+  and not has_function_privilege('anon', 'public.movie_cleanup_tick()', 'execute'),
   'jobs: anonymous visitors cannot execute the job functions'
 );
 select tests.as_user('host');

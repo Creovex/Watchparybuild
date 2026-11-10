@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { isPresent, SOURCE_LABEL, type MemberRow, type RoomRow } from '@watchparty/sync-core';
 import { Badge, Icon, SeatRow } from '@watchparty/ui';
+import { MovieShelf } from '@/components/MovieShelf';
 import { InstallHint } from '@/components/InstallHint';
 import { JoinByLink } from '@/components/JoinByLink';
 import { SiteFooter } from '@/components/SiteFooter';
@@ -39,9 +40,18 @@ export default async function HomePage() {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <SiteHeader profile={profile ? { display_name: profile.display_name, avatar_url: profile.avatar_url } : null} />
+      <SiteHeader
+        profile={profile ? { display_name: profile.display_name, avatar_url: profile.avatar_url } : null}
+      />
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-4 py-8 sm:px-6 lg:py-12">
         <InstallHint />
+        <MovieShelf />
+        <section
+          aria-label="Join a room"
+          className="rounded-xl bg-surface-1 p-4 ring-1 ring-line sm:p-5 lg:max-w-xl"
+        >
+          <JoinByLink />
+        </section>
         <section className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="flex flex-col gap-2">
             <p className="slate">Signed in as {profile?.display_name ?? user.email}</p>
@@ -56,10 +66,6 @@ export default async function HomePage() {
           </Link>
         </section>
 
-        <section aria-label="Join a room" className="rounded-xl bg-surface-1 p-4 ring-1 ring-line sm:p-5 lg:max-w-xl">
-          <JoinByLink />
-        </section>
-
         <section aria-labelledby="open-rooms" className="flex flex-col gap-3">
           <h2 id="open-rooms" className="slate">
             Open now
@@ -69,7 +75,8 @@ export default async function HomePage() {
               <Icon name="seat" size={28} className="text-faint" />
               <p className="text-lg font-semibold">No open rooms yet</p>
               <p className="max-w-[44ch] text-muted">
-                Start one and send the link to whoever you want to watch with. Rooms you join from a link show up here too.
+                Start one and send the link to whoever you want to watch with. Rooms you join from a link show
+                up here too.
               </p>
             </div>
           ) : (
@@ -120,7 +127,10 @@ export default async function HomePage() {
             </h2>
             <ul className="flex flex-col divide-y divide-line rounded-xl ring-1 ring-line">
               {closed.map((room) => (
-                <li key={room.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-muted">
+                <li
+                  key={room.id}
+                  className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-muted"
+                >
                   <span className="truncate">{room.title}</span>
                   <span className="shrink-0">{SOURCE_LABEL[room.source]}</span>
                 </li>
@@ -145,7 +155,10 @@ export default async function HomePage() {
           </div>
           <div className="flex items-center gap-4">
             <SeatRow cap={cap} taken={cap} size={24} label={`${cap} seats per room`} />
-            <Link href="/upgrade" className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-amber hover:text-amber-bright">
+            <Link
+              href="/upgrade"
+              className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-amber hover:text-amber-bright"
+            >
               Compare plans
               <Icon name="chevronRight" size={16} />
             </Link>

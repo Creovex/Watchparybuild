@@ -5,6 +5,14 @@
  * packages/sync-core/src/schemas.ts; a test keeps the two equal.
  */
 export const FUNCTION_STATUS = {
+  bad_key: 403,
+  movie_unavailable: 409,
+  upload_not_allowed: 403,
+  quota_exceeded: 409,
+  storage_full: 409,
+  upload_in_progress: 409,
+  size_mismatch: 409,
+
   invalid_input: 400,
   unauthorized: 401,
   not_member: 403,

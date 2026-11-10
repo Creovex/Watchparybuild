@@ -49,7 +49,10 @@ function member(userId: string, role: 'host' | 'guest'): MemberRow {
 }
 
 /** Just enough of a Supabase client for RoomController and the panel session. */
-function fakeSupabase(db: { room: RoomRow; playback: PlaybackStateRow; members: MemberRow[] }, userId: string) {
+function fakeSupabase(
+  db: { room: RoomRow; playback: PlaybackStateRow; members: MemberRow[] },
+  userId: string,
+) {
   const authListeners = new Set<(event: string, session: unknown) => void>();
   let session: Record<string, unknown> | null = null;
   const rpcCalls: Array<[string, Record<string, unknown>]> = [];
@@ -63,7 +66,11 @@ function fakeSupabase(db: { room: RoomRow; playback: PlaybackStateRow; members: 
       case 'room_members':
         return db.members;
       case 'profile_public':
-        return db.members.map((m) => ({ id: m.user_id, display_name: m.role === 'host' ? 'Hana' : 'Gus', avatar_url: null }));
+        return db.members.map((m) => ({
+          id: m.user_id,
+          display_name: m.role === 'host' ? 'Hana' : 'Gus',
+          avatar_url: null,
+        }));
       case 'profiles':
         return [{ display_name: userId === HOST_ID ? 'Hana' : 'Gus', avatar_url: null, duck_level: 0.35 }];
       default:
@@ -148,7 +155,11 @@ function setup(userId = HOST_ID, roomPartial: Partial<RoomRow> = {}) {
   const storage = new Map<string, unknown>([[roomKey(ROOM_ID), record()]]);
   const sent: Array<PanelToContent | PanelToWorker> = [];
   let deliver: (m: ToPanel) => void = () => undefined;
-  const db = { room: roomRow(roomPartial), playback: stateRow({ seq: 3, status: 'paused', position_sec: 61 }), members: [member(HOST_ID, 'host'), member(GUEST_ID, 'guest')] };
+  const db = {
+    room: roomRow(roomPartial),
+    playback: stateRow({ seq: 3, status: 'paused', position_sec: 61 }),
+    members: [member(HOST_ID, 'host'), member(GUEST_ID, 'guest')],
+  };
   const supabase = fakeSupabase(db, userId);
   session = new PanelSession({
     port: {
@@ -180,7 +191,12 @@ function setup(userId = HOST_ID, roomPartial: Partial<RoomRow> = {}) {
       await vi.waitFor(() => expect(s.store.get().phase).toBe('room'));
     },
     capabilities() {
-      deliver({ type: 'capabilities', source: 'netflix', capabilities: { seek: false, fineRate: false, volume: true, seekLatencySec: 0.5 }, video: true });
+      deliver({
+        type: 'capabilities',
+        source: 'netflix',
+        capabilities: { seek: false, fineRate: false, volume: true, seekLatencySec: 0.5 },
+        video: true,
+      });
     },
   };
 }
@@ -200,7 +216,10 @@ describe('PanelSession', () => {
   it('restores the handed over session and takes over the engine session on auto sync', async () => {
     const t = setup();
     await t.live();
-    expect(t.storage.get(tokensKey(ROOM_ID))).toEqual({ access_token: 'access-1', refresh_token: 'refresh-1' });
+    expect(t.storage.get(tokensKey(ROOM_ID))).toEqual({
+      access_token: 'access-1',
+      refresh_token: 'refresh-1',
+    });
     const touch = t.supabase.rpcCalls.find(([name]) => name === 'touch_member');
     expect(touch?.[1]).toMatchObject({ room_id: ROOM_ID, engine_session: ENGINE_SESSION, sync_mode: 'auto' });
     expect(t.session.store.get().me?.name).toBe('Hana');
@@ -210,7 +229,12 @@ describe('PanelSession', () => {
     const t = setup();
     await t.live();
     t.supabase.refresh({ access_token: 'access-2', refresh_token: 'refresh-2' });
-    await vi.waitFor(() => expect(t.storage.get(tokensKey(ROOM_ID))).toEqual({ access_token: 'access-2', refresh_token: 'refresh-2' }));
+    await vi.waitFor(() =>
+      expect(t.storage.get(tokensKey(ROOM_ID))).toEqual({
+        access_token: 'access-2',
+        refresh_token: 'refresh-2',
+      }),
+    );
   });
 
   it('drives the content script engine once the player is known', async () => {
@@ -248,13 +272,43 @@ describe('PanelSession', () => {
     expect(t.supabase.rpcCalls.some(([name]) => name === 'leave_room')).toBe(true);
   });
 
+  it('detaches the streaming-tab engine when a room switches to an uploaded movie', async () => {
+    const t = setup();
+    await t.live();
+    t.capabilities();
+    t.deliver({
+      type: 'content_ref',
+      url: 'https://www.netflix.com/watch/81234567',
+      title_key: 'netflix:81234567',
+    });
+    const controller = t.session.store.get().controller!;
+    expect(controller.engineHost).not.toBeNull();
+    controller.store.set({
+      room: {
+        ...controller.store.get().room!,
+        source: 'upload',
+        content_ref: '22222222-2222-4222-8222-222222222222',
+      },
+    });
+    expect(controller.engineHost).toBeNull();
+    expect(t.sent.some((message) => message.type === 'suspend')).toBe(true);
+  });
+
   it('shows a guest on another episode a way back and stops syncing meanwhile', async () => {
     const t = setup(GUEST_ID);
     await t.live();
     t.capabilities();
-    t.deliver({ type: 'content_ref', url: 'https://www.netflix.com/watch/81234567?trackId=1', title_key: 'netflix:81234567' });
+    t.deliver({
+      type: 'content_ref',
+      url: 'https://www.netflix.com/watch/81234567?trackId=1',
+      title_key: 'netflix:81234567',
+    });
     expect(t.session.store.get().episode).toBe('match');
-    t.deliver({ type: 'content_ref', url: 'https://www.netflix.com/watch/99999999', title_key: 'netflix:99999999' });
+    t.deliver({
+      type: 'content_ref',
+      url: 'https://www.netflix.com/watch/99999999',
+      title_key: 'netflix:99999999',
+    });
     expect(t.session.store.get().episode).toBe('guest_elsewhere');
     expect(t.sent.at(-1)).toEqual({ type: 'suspend' });
     // A guest never changes the room's title.
@@ -266,17 +320,33 @@ describe('PanelSession', () => {
   it('moves the room to the next episode when the host’s tab moves to it', async () => {
     const t = setup(HOST_ID);
     await t.live();
-    t.deliver({ type: 'content_ref', url: 'https://www.netflix.com/watch/81234567', title_key: 'netflix:81234567' });
-    t.deliver({ type: 'content_ref', url: 'https://www.netflix.com/watch/81234568?trackId=2', title_key: 'netflix:81234568' });
+    t.deliver({
+      type: 'content_ref',
+      url: 'https://www.netflix.com/watch/81234567',
+      title_key: 'netflix:81234567',
+    });
+    t.deliver({
+      type: 'content_ref',
+      url: 'https://www.netflix.com/watch/81234568?trackId=2',
+      title_key: 'netflix:81234568',
+    });
     await vi.waitFor(() => expect(t.supabase.rpcCalls.some(([name]) => name === 'set_source')).toBe(true));
     const call = t.supabase.rpcCalls.find(([name]) => name === 'set_source')!;
-    expect(call[1]).toEqual({ room_id: ROOM_ID, source: 'netflix', content_ref: 'https://www.netflix.com/watch/81234568?trackId=2' });
+    expect(call[1]).toEqual({
+      room_id: ROOM_ID,
+      source: 'netflix',
+      content_ref: 'https://www.netflix.com/watch/81234568?trackId=2',
+    });
   });
 
   it('does not change the room when the host’s tab simply opens on another title', async () => {
     const t = setup(HOST_ID);
     await t.live();
-    t.deliver({ type: 'content_ref', url: 'https://www.netflix.com/watch/70000000', title_key: 'netflix:70000000' });
+    t.deliver({
+      type: 'content_ref',
+      url: 'https://www.netflix.com/watch/70000000',
+      title_key: 'netflix:70000000',
+    });
     expect(t.session.store.get().episode).toBe('host_elsewhere');
     expect(t.supabase.rpcCalls.some(([name]) => name === 'set_source')).toBe(false);
   });
@@ -290,7 +360,17 @@ describe('PanelSession', () => {
     const controller = t.session.store.get().controller!;
     controller.store.set({
       messages: [
-        { id: '66666666-6666-4666-8666-666666666666', room_id: ROOM_ID, user_id: GUEST_ID, kind: 'chat', body: 'hi', system_code: null, position_sec: null, created_at: NOW, deleted_at: null },
+        {
+          id: '66666666-6666-4666-8666-666666666666',
+          room_id: ROOM_ID,
+          user_id: GUEST_ID,
+          kind: 'chat',
+          body: 'hi',
+          system_code: null,
+          position_sec: null,
+          created_at: NOW,
+          deleted_at: null,
+        },
       ],
     });
     expect(t.sent.at(-1)).toEqual({ type: 'fs_state', voice: 'live', unread: 1 });

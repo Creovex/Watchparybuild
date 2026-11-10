@@ -218,12 +218,23 @@ export class RoomController {
       this.store.set({ status: 'idle' });
       return res;
     }
-    await this.start(res.data, slug, syncMode);
-    return res;
+    try {
+      await this.start(res.data, slug, syncMode);
+      return res;
+    } catch {
+      await this.unsubscribe();
+      this.store.set({ status: 'idle' });
+      return { ok: false, code: 'internal' };
+    }
   }
 
   /** Takes over an existing engine session, as the extension panel does after a handover. */
-  async resume(input: { roomId: string; slug: string; engineSession: string; syncMode: SyncMode }): Promise<Result<null>> {
+  async resume(input: {
+    roomId: string;
+    slug: string;
+    engineSession: string;
+    syncMode: SyncMode;
+  }): Promise<Result<null>> {
     this.store.set({ status: 'joining', syncMode: input.syncMode });
     this.roomId = input.roomId;
     this.slug = input.slug;
@@ -494,9 +505,16 @@ export class RoomController {
   private subscribeChannel(channel: RealtimeChannel): Promise<void> {
     return new Promise((resolve, reject) => {
       let settled = false;
+      const timeout = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          reject(new Error('Subscription timed out'));
+        }
+      }, 15000);
       channel.subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           if (!settled) {
+            clearTimeout(timeout);
             settled = true;
             resolve();
           }
@@ -504,6 +522,7 @@ export class RoomController {
         }
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           if (!settled) {
+            clearTimeout(timeout);
             settled = true;
             reject(new Error(status));
             return;
@@ -609,7 +628,11 @@ export class RoomController {
 
   private async fetchPlayback(): Promise<PlaybackStateRow | null> {
     if (!this.roomId) return null;
-    const { data } = await this.supabase.from('playback_state').select('*').eq('room_id', this.roomId).maybeSingle();
+    const { data } = await this.supabase
+      .from('playback_state')
+      .select('*')
+      .eq('room_id', this.roomId)
+      .maybeSingle();
     const parsed = PlaybackStateRow.safeParse(data);
     return parsed.success ? parsed.data : null;
   }
@@ -637,7 +660,10 @@ export class RoomController {
   private async loadProfiles(ids: string[]): Promise<void> {
     const unique = [...new Set(ids)].filter(Boolean);
     if (!unique.length) return;
-    const { data } = await this.supabase.from('profile_public').select('id, display_name, avatar_url').in('id', unique);
+    const { data } = await this.supabase
+      .from('profile_public')
+      .select('id, display_name, avatar_url')
+      .in('id', unique);
     for (const raw of data ?? []) {
       const parsed = ProfilePublic.safeParse(raw);
       if (parsed.success) this.profiles.set(parsed.data.id, parsed.data);
@@ -743,7 +769,10 @@ export class RoomController {
     const ticker = this.opts.createTicker ?? defaultTicker;
     this.stops.push(
       // Every check-in also refreshes members and picks up any chat a dropped event missed.
-      ticker(TOUCH_INTERVAL_MS, () => void this.touch().then(() => Promise.all([this.refreshMembers(), this.loadNewerMessages()]))),
+      ticker(
+        TOUCH_INTERVAL_MS,
+        () => void this.touch().then(() => Promise.all([this.refreshMembers(), this.loadNewerMessages()])),
+      ),
       ticker(CLOCK_RESYNC_MS, () => void this.clock.sync().catch(() => undefined)),
       defaultTicker(HEARTBEAT_INTERVAL_MS, () => this.sendHeartbeat()),
       defaultTicker(WAIT_CHECK_MS, () => void this.waitForEveryone()),
@@ -789,7 +818,11 @@ export class RoomController {
     void this.clientChannel.send({
       type: 'broadcast',
       event: 'heartbeat',
-      payload: { seq: this.lastSeq, observed_position: this.host.getPosition(), observed_server_ms: this.clock.now() },
+      payload: {
+        seq: this.lastSeq,
+        observed_position: this.host.getPosition(),
+        observed_server_ms: this.clock.now(),
+      },
     });
   }
 
@@ -798,7 +831,8 @@ export class RoomController {
     const state = this.store.get();
     const { room, playback } = state;
     if (!this.roomId || !room?.wait_for_everyone || !playback || state.electedId !== this.me.id) return;
-    const watching = playback.status === 'playing' || (playback.status === 'paused' && playback.paused_reason === 'buffer');
+    const watching =
+      playback.status === 'playing' || (playback.status === 'paused' && playback.paused_reason === 'buffer');
     if (!watching) return;
     await this.refreshMembers();
     const decision = this.waiter.decide({
@@ -833,7 +867,10 @@ export class RoomController {
     ];
     this.store.set({ popups });
     for (const m of passed) {
-      setTimeout(() => this.store.set((s) => ({ popups: s.popups.filter((p) => p.id !== m.id) })), TIMED_VISIBLE_MS);
+      setTimeout(
+        () => this.store.set((s) => ({ popups: s.popups.filter((p) => p.id !== m.id) })),
+        TIMED_VISIBLE_MS,
+      );
     }
   }
 
@@ -882,7 +919,12 @@ export class RoomController {
     try {
       await this.supabase.auth.getSession();
       await this.supabase.realtime.setAuth();
-      const res = await this.api.touchMember(this.roomId, this.engineSession ?? '', this.buffering, this.store.get().syncMode);
+      const res = await this.api.touchMember(
+        this.roomId,
+        this.engineSession ?? '',
+        this.buffering,
+        this.store.get().syncMode,
+      );
       if (!res.ok) {
         this.handleTouchFailure(res.code, false);
         if (this.store.get().status === 'fatal') return;
@@ -893,12 +935,19 @@ export class RoomController {
         this.applyRoom(room);
         if (this.store.get().status === 'fatal') return;
         const channelsHealthy =
-          this.serverChannel?.state === 'joined' && this.clientChannel?.state === 'joined' && room.channel_epoch === this.epoch;
+          this.serverChannel?.state === 'joined' &&
+          this.clientChannel?.state === 'joined' &&
+          room.channel_epoch === this.epoch;
         this.epoch = room.channel_epoch;
         if (!channelsHealthy) await this.subscribe(this.epoch);
         else await this.trackPresence();
       }
-      await Promise.allSettled([this.refetchPlayback(), this.loadNewerMessages(), this.refreshMembers(), this.clock.sync()]);
+      await Promise.allSettled([
+        this.refetchPlayback(),
+        this.loadNewerMessages(),
+        this.refreshMembers(),
+        this.clock.sync(),
+      ]);
       this.host?.resync();
       this.store.set({ status: 'live' });
     } catch {
@@ -916,7 +965,11 @@ export class RoomController {
     if (!this.roomId) return { ok: false, code: 'not_member' };
     const text = body.trim();
     if (!text) return { ok: false, code: 'invalid_input' };
-    const res = await this.api.sendChat(this.roomId, text.slice(0, 1000), pinned ? this.currentPosition() : null);
+    const res = await this.api.sendChat(
+      this.roomId,
+      text.slice(0, 1000),
+      pinned ? this.currentPosition() : null,
+    );
     if (!res.ok) this.notify({ message: '', tone: 'error', code: res.code });
     return res;
   }
@@ -946,7 +999,10 @@ export class RoomController {
       drift: Math.round((Math.random() - 0.5) * 32),
     };
     this.store.set((s) => ({ reactions: [...s.reactions.slice(-24), reaction] }));
-    setTimeout(() => this.store.set((s) => ({ reactions: s.reactions.filter((r) => r.id !== reaction.id) })), REACTION_VISIBLE_MS);
+    setTimeout(
+      () => this.store.set((s) => ({ reactions: s.reactions.filter((r) => r.id !== reaction.id) })),
+      REACTION_VISIBLE_MS,
+    );
     return true;
   }
 
@@ -1013,7 +1069,12 @@ export class RoomController {
     return res.ok;
   }
 
-  async report(input: { targetUserId: string; messageId: string | null; reason: ReportReason; note: string }): Promise<boolean> {
+  async report(input: {
+    targetUserId: string;
+    messageId: string | null;
+    reason: ReportReason;
+    note: string;
+  }): Promise<boolean> {
     if (!this.roomId) return false;
     const res = await this.api.report({ roomId: this.roomId, reporterId: this.me.id, ...input });
     if (!res.ok) this.notify({ message: '', tone: 'error', code: res.code });

@@ -11,9 +11,21 @@ import {
   type Source,
 } from '@watchparty/sync-core';
 import { Icon, type IconName } from '../../icons';
-import { Button, ChoiceGroup, cx, Notice, Sheet, Switch, TextArea, TextField, useCopy, useToast } from '../../primitives';
+import {
+  Button,
+  ChoiceGroup,
+  cx,
+  Notice,
+  Sheet,
+  Switch,
+  TextArea,
+  TextField,
+  useCopy,
+  useToast,
+} from '../../primitives';
 import type { MemberView } from '../controller';
 import { useRoom } from '../hooks';
+import { MoviePicker } from './MoviePicker';
 import { useController } from './context';
 
 // Host settings ------------------------------------------------------------------------------------
@@ -38,7 +50,9 @@ export function HostSheet({ open, onClose }: { open: boolean; onClose: () => voi
   }, [open, controller]);
 
   if (!room) return null;
-  const guestsHere = members.filter((m) => m.state === 'joined' && m.present && m.user_id !== controller.userId);
+  const guestsHere = members.filter(
+    (m) => m.state === 'joined' && m.present && m.user_id !== controller.userId,
+  );
 
   async function run(key: string, action: () => Promise<boolean>, done?: string) {
     setBusy(key);
@@ -53,11 +67,16 @@ export function HostSheet({ open, onClose }: { open: boolean; onClose: () => voi
       <div className="flex flex-col gap-6">
         <section className="flex flex-col gap-2">
           <h3 className="slate">Room link</h3>
-          <p className="break-all rounded-lg bg-surface-1 px-3 py-2 font-mono text-xs text-muted" data-testid="host-room-link">
+          <p
+            className="break-all rounded-lg bg-surface-1 px-3 py-2 font-mono text-xs text-muted"
+            data-testid="host-room-link"
+          >
             {link ?? 'Loading link…'}
           </p>
           {room.visibility === 'private' ? (
-            <p className="text-sm text-muted">This link includes the room&rsquo;s key. Anyone with it can join.</p>
+            <p className="text-sm text-muted">
+              This link includes the room&rsquo;s key. Anyone with it can join.
+            </p>
           ) : null}
           <div className="flex flex-wrap gap-2">
             <Button icon={copied ? 'check' : 'copy'} disabled={!link} onClick={() => link && void copy(link)}>
@@ -67,7 +86,9 @@ export function HostSheet({ open, onClose }: { open: boolean; onClose: () => voi
               <Button
                 icon="share"
                 disabled={!link}
-                onClick={() => link && void navigator.share({ title: room.title, url: link }).catch(() => undefined)}
+                onClick={() =>
+                  link && void navigator.share({ title: room.title, url: link }).catch(() => undefined)
+                }
               >
                 Share
               </Button>
@@ -84,7 +105,11 @@ export function HostSheet({ open, onClose }: { open: boolean; onClose: () => voi
                         variant="primary"
                         busy={busy === 'rotate'}
                         onClick={async () => {
-                          const ok = await run('rotate', () => controller.rotateKey(), 'New link ready. The old one no longer works.');
+                          const ok = await run(
+                            'rotate',
+                            () => controller.rotateKey(),
+                            'New link ready. The old one no longer works.',
+                          );
                           if (ok) setLink(await controller.roomLink());
                           setConfirmRotate(false);
                         }}
@@ -114,8 +139,18 @@ export function HostSheet({ open, onClose }: { open: boolean; onClose: () => voi
           value={room.control_mode}
           onChange={(value) => void run('control', () => controller.updateSettings({ control_mode: value }))}
           options={[
-            { value: 'host', label: 'Only the host', description: 'Guests who pause or seek snap back.', icon: 'crown' },
-            { value: 'everyone', label: 'Everyone', description: 'Anyone can play, pause and seek.', icon: 'people' },
+            {
+              value: 'host',
+              label: 'Only the host',
+              description: 'Guests who pause or seek snap back.',
+              icon: 'crown',
+            },
+            {
+              value: 'everyone',
+              label: 'Everyone',
+              description: 'Anyone can play, pause and seek.',
+              icon: 'people',
+            },
           ]}
         />
 
@@ -124,7 +159,9 @@ export function HostSheet({ open, onClose }: { open: boolean; onClose: () => voi
             label="Wait for everyone"
             description="Pause the room while someone's stream catches up."
             checked={room.wait_for_everyone}
-            onChange={(value) => void run('wait', () => controller.updateSettings({ wait_for_everyone: value }))}
+            onChange={(value) =>
+              void run('wait', () => controller.updateSettings({ wait_for_everyone: value }))
+            }
           />
           <Switch
             label="Lock the room"
@@ -147,9 +184,11 @@ export function HostSheet({ open, onClose }: { open: boolean; onClose: () => voi
                     icon="crown"
                     busy={busy === `host-${m.user_id}`}
                     onClick={() =>
-                      void run(`host-${m.user_id}`, () => controller.transferHost(m.user_id), `${m.name} is now the host.`).then(
-                        (ok) => ok && onClose(),
-                      )
+                      void run(
+                        `host-${m.user_id}`,
+                        () => controller.transferHost(m.user_id),
+                        `${m.name} is now the host.`,
+                      ).then((ok) => ok && onClose())
                     }
                   >
                     Make {m.name} host
@@ -169,7 +208,11 @@ export function HostSheet({ open, onClose }: { open: boolean; onClose: () => voi
               title="Close the room for everyone?"
               action={
                 <div className="flex gap-2">
-                  <Button variant="danger" busy={busy === 'close'} onClick={() => void run('close', () => controller.closeRoom())}>
+                  <Button
+                    variant="danger"
+                    busy={busy === 'close'}
+                    onClick={() => void run('close', () => controller.closeRoom())}
+                  >
                     Close room
                   </Button>
                   <Button variant="ghost" onClick={() => setConfirmClose(false)}>
@@ -181,7 +224,12 @@ export function HostSheet({ open, onClose }: { open: boolean; onClose: () => voi
               Everyone sees &ldquo;This room was closed&rdquo; and the link stops working.
             </Notice>
           ) : (
-            <Button variant="ghost" icon="close" className="self-start text-red" onClick={() => setConfirmClose(true)}>
+            <Button
+              variant="ghost"
+              icon="close"
+              className="self-start text-red"
+              onClick={() => setConfirmClose(true)}
+            >
               Close room
             </Button>
           )}
@@ -235,10 +283,15 @@ export function SourcePicker({ compact = false, onDone }: { compact?: boolean; o
             type="button"
             role="radio"
             aria-checked={source === s}
-            onClick={() => setSource(s)}
+            onClick={() => {
+              setSource(s);
+              setValue('');
+            }}
             className={cx(
               'min-h-11 rounded-lg px-2 text-sm font-semibold ring-1 ring-inset',
-              source === s ? 'bg-surface-3 text-amber ring-amber' : 'bg-surface-1 text-muted ring-line hover:text-text',
+              source === s
+                ? 'bg-surface-3 text-amber ring-amber'
+                : 'bg-surface-1 text-muted ring-line hover:text-text',
             )}
           >
             {SOURCE_LABEL[s]}
@@ -252,15 +305,19 @@ export function SourcePicker({ compact = false, onDone }: { compact?: boolean; o
           void submit();
         }}
       >
-        <TextField
-          label={source === 'youtube' ? 'YouTube video link' : `${SOURCE_LABEL[source]} title address`}
-          placeholder={source === 'youtube' ? 'https://www.youtube.com/watch?v=…' : 'https://'}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          error={error}
-          inputMode="url"
-          autoComplete="off"
-        />
+        {source === 'upload' ? (
+          <MoviePicker api={controller.api} onChoose={setValue} />
+        ) : (
+          <TextField
+            label={source === 'youtube' ? 'YouTube video link' : `${SOURCE_LABEL[source]} title address`}
+            placeholder={source === 'youtube' ? 'https://www.youtube.com/watch?v=…' : 'https://'}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            error={error}
+            inputMode="url"
+            autoComplete="off"
+          />
+        )}
         <Button type="submit" variant="primary" busy={busy} disabled={!value.trim()} className="self-start">
           Play this for everyone
         </Button>
@@ -314,7 +371,12 @@ export function MemberMenu({
   const toast = useToast();
   const [confirm, setConfirm] = useState<'remove' | 'ban' | null>(null);
   useEffect(() => setConfirm(null), [member]);
-  if (!member || !room) return <Sheet open={false} onClose={onClose} title="">{null}</Sheet>;
+  if (!member || !room)
+    return (
+      <Sheet open={false} onClose={onClose} title="">
+        {null}
+      </Sheet>
+    );
   const isHost = room.host_id === controller.userId;
   const actions: MenuAction[] = [];
 
@@ -324,7 +386,8 @@ export function MemberMenu({
         icon: 'userBack',
         label: 'Allow back in',
         onSelect: async () => {
-          if (await controller.moderate(member.user_id, 'allow_back')) toast(`${member.name} can join again.`, 'success');
+          if (await controller.moderate(member.user_id, 'allow_back'))
+            toast(`${member.name} can join again.`, 'success');
           onClose();
         },
       },
@@ -356,7 +419,8 @@ export function MemberMenu({
         icon: 'crown',
         label: 'Make host',
         onSelect: async () => {
-          if (await controller.transferHost(member.user_id)) toast(`${member.name} is now the host.`, 'success');
+          if (await controller.transferHost(member.user_id))
+            toast(`${member.name} is now the host.`, 'success');
           onClose();
         },
       });
@@ -380,7 +444,10 @@ export function MemberMenu({
                 variant="danger"
                 onClick={async () => {
                   if (await controller.moderate(member.user_id, confirm)) {
-                    toast(confirm === 'ban' ? `${member.name} is banned.` : `${member.name} was removed.`, 'success');
+                    toast(
+                      confirm === 'ban' ? `${member.name} is banned.` : `${member.name} was removed.`,
+                      'success',
+                    );
                   }
                   onClose();
                 }}
@@ -415,7 +482,12 @@ export function MessageMenu({
 }) {
   const controller = useController();
   const { room } = useRoom(controller);
-  if (!message || !room) return <Sheet open={false} onClose={onClose} title="">{null}</Sheet>;
+  if (!message || !room)
+    return (
+      <Sheet open={false} onClose={onClose} title="">
+        {null}
+      </Sheet>
+    );
   const mine = message.user_id === controller.userId;
   const actions: MenuAction[] = [];
   if (mine || room.host_id === controller.userId) {
@@ -430,7 +502,11 @@ export function MessageMenu({
     });
   }
   if (!mine && message.user_id) {
-    actions.push({ icon: 'flag', label: `Report ${controller.nameOf(message.user_id)}`, onSelect: () => onReport(message) });
+    actions.push({
+      icon: 'flag',
+      label: `Report ${controller.nameOf(message.user_id)}`,
+      onSelect: () => onReport(message),
+    });
   }
   if (!actions.length) actions.push({ icon: 'close', label: 'Nothing to do here', onSelect: onClose });
   return (
@@ -477,7 +553,12 @@ export function ReportSheet({
           onClick={async () => {
             if (!target) return;
             setBusy(true);
-            const ok = await controller.report({ targetUserId: target.userId, messageId: target.messageId, reason, note });
+            const ok = await controller.report({
+              targetUserId: target.userId,
+              messageId: target.messageId,
+              reason,
+              note,
+            });
             setBusy(false);
             if (ok) {
               toast('Report sent. Thank you.', 'success');
@@ -505,7 +586,9 @@ export function ReportSheet({
           onChange={(e) => setNote(e.target.value)}
           hint={`${note.length} of 500 characters`}
         />
-        <p className="text-sm text-muted">Reports go to the people who run this app. The person you report is not told.</p>
+        <p className="text-sm text-muted">
+          Reports go to the people who run this app. The person you report is not told.
+        </p>
       </div>
     </Sheet>
   );

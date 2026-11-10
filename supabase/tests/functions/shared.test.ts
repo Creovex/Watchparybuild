@@ -46,6 +46,13 @@ function handlers() {
 
 Deno.test('the status map matches the build prompt', () => {
   assertEquals(FUNCTION_STATUS, {
+    bad_key: 403,
+    movie_unavailable: 409,
+    upload_not_allowed: 403,
+    quota_exceeded: 409,
+    storage_full: 409,
+    upload_in_progress: 409,
+    size_mismatch: 409,
     invalid_input: 400,
     unauthorized: 401,
     not_member: 403,
@@ -60,7 +67,9 @@ Deno.test('the status map matches the build prompt', () => {
 });
 
 Deno.test('the codes equal FUNCTION_CODES in the shared sync-core schemas', async () => {
-  const source = await Deno.readTextFile(new URL('../../../packages/sync-core/src/schemas.ts', import.meta.url));
+  const source = await Deno.readTextFile(
+    new URL('../../../packages/sync-core/src/schemas.ts', import.meta.url),
+  );
   const block = /export const FUNCTION_CODES = \[([^\]]*)\]/.exec(source)?.[1];
   assert(block, 'FUNCTION_CODES not found in packages/sync-core/src/schemas.ts');
   const codes = [...block.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort();
@@ -69,12 +78,15 @@ Deno.test('the codes equal FUNCTION_CODES in the shared sync-core schemas', asyn
 
 Deno.test('every function has the same import map, and the tests use it too', async () => {
   const read = async (path: string) =>
-    JSON.parse(await Deno.readTextFile(new URL(path, import.meta.url))) as { imports: Record<string, string> };
+    JSON.parse(await Deno.readTextFile(new URL(path, import.meta.url))) as {
+      imports: Record<string, string>;
+    };
   const fns = ['turn-credentials', 'livekit-token', 'moderate', 'delete-account'];
   const maps = await Promise.all(fns.map((f) => read(`../../functions/${f}/deno.json`)));
   for (const map of maps) assertEquals(map, maps[0]);
   const tests = await read('./deno.json');
-  for (const [name, target] of Object.entries(maps[0]?.imports ?? {})) assertEquals(tests.imports[name], target);
+  for (const [name, target] of Object.entries(maps[0]?.imports ?? {}))
+    assertEquals(tests.imports[name], target);
 });
 
 Deno.test('allowed origins come from SITE_URL, PREVIEW_URL and EXTENSION_ORIGINS', () => {
@@ -95,18 +107,21 @@ Deno.test('allowed origins come from SITE_URL, PREVIEW_URL and EXTENSION_ORIGINS
 });
 
 for (const name of ['turn-credentials', 'livekit-token', 'moderate', 'delete-account'] as const) {
-  Deno.test(`${name}: answers CORS preflights for the site, the preview domain and the extension`, async () => {
-    const handler = handlers().all[name];
-    for (const origin of [SITE, PREVIEW, EXTENSION]) {
-      const res = await handler(preflightRequest(origin));
-      assertEquals(res.status, 204);
-      assertEquals(res.headers.get('Access-Control-Allow-Origin'), origin);
-      assertEquals(res.headers.get('Access-Control-Allow-Methods'), 'POST, OPTIONS');
-      assert(res.headers.get('Access-Control-Allow-Headers')?.includes('authorization'));
-      assert(res.headers.get('Access-Control-Allow-Headers')?.includes('content-type'));
-      assertEquals(res.headers.get('Vary'), 'Origin');
-    }
-  });
+  Deno.test(
+    `${name}: answers CORS preflights for the site, the preview domain and the extension`,
+    async () => {
+      const handler = handlers().all[name];
+      for (const origin of [SITE, PREVIEW, EXTENSION]) {
+        const res = await handler(preflightRequest(origin));
+        assertEquals(res.status, 204);
+        assertEquals(res.headers.get('Access-Control-Allow-Origin'), origin);
+        assertEquals(res.headers.get('Access-Control-Allow-Methods'), 'POST, OPTIONS');
+        assert(res.headers.get('Access-Control-Allow-Headers')?.includes('authorization'));
+        assert(res.headers.get('Access-Control-Allow-Headers')?.includes('content-type'));
+        assertEquals(res.headers.get('Vary'), 'Origin');
+      }
+    },
+  );
 
   Deno.test(`${name}: refuses a preflight from any other origin`, async () => {
     const handler = handlers().all[name];
@@ -150,13 +165,16 @@ for (const name of ['turn-credentials', 'livekit-token', 'moderate', 'delete-acc
     }
   });
 
-  Deno.test(`${name}: invalid_input for a body that is not JSON and for methods other than POST`, async () => {
-    const handler = handlers().all[name];
-    const bad = await handler(post(null, { raw: '{not json' }));
-    assertEquals(bad.status, 400);
-    assertEquals(await body(bad), { ok: false, code: 'invalid_input' });
-    const get = await handler(new Request('http://localhost/functions/v1/x', { method: 'GET' }));
-    assertEquals(get.status, 400);
-    assertEquals(await body(get), { ok: false, code: 'invalid_input' });
-  });
+  Deno.test(
+    `${name}: invalid_input for a body that is not JSON and for methods other than POST`,
+    async () => {
+      const handler = handlers().all[name];
+      const bad = await handler(post(null, { raw: '{not json' }));
+      assertEquals(bad.status, 400);
+      assertEquals(await body(bad), { ok: false, code: 'invalid_input' });
+      const get = await handler(new Request('http://localhost/functions/v1/x', { method: 'GET' }));
+      assertEquals(get.status, 400);
+      assertEquals(await body(get), { ok: false, code: 'invalid_input' });
+    },
+  );
 }

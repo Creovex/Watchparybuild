@@ -1,0 +1,37 @@
+{
+  "packageId": "app.synvello.android",
+  "host": "synvello.vercel.app",
+  "name": "Synvello",
+  "launcherName": "Synvello",
+  "display": "standalone",
+  "themeColor": "#0f0d0c",
+  "navigationColor": "#0f0d0c",
+  "backgroundColor": "#0f0d0c",
+  "enableNotifications": false,
+  "startUrl": "/home",
+  "iconUrl": "https://synvello.vercel.app/pwa-icon/512",
+  "maskableIconUrl": "https://synvello.vercel.app/pwa-icon/maskable-512",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./synvello.keystore",
+    "alias": "synvello"
+  },
+  "appVersion": "1.0.0",
+  "appVersionCode": 1,
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://synvello.vercel.app/manifest.webmanifest",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "minSdkVersion": 24,
+  "orientation": "any",
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": []
+}

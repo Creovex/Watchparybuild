@@ -43,7 +43,11 @@ export class RoomApi {
     private readonly options: RoomApiOptions = {},
   ) {}
 
-  private async rpc<T>(name: string, args: Record<string, unknown>, schema?: z.ZodType<T>): Promise<Result<T>> {
+  private async rpc<T>(
+    name: string,
+    args: Record<string, unknown>,
+    schema?: z.ZodType<T>,
+  ): Promise<Result<T>> {
     try {
       const { data, error } = await this.supabase.rpc(name, args);
       if (error) return { ok: false, code: error.code === 'PGRST301' ? 'unauthorized' : 'internal' };
@@ -53,7 +57,11 @@ export class RoomApi {
     }
   }
 
-  private async fn<T>(name: string, body: Record<string, unknown>, schema?: z.ZodType<T>): Promise<Result<T>> {
+  private async fn<T>(
+    name: string,
+    body: Record<string, unknown>,
+    schema?: z.ZodType<T>,
+  ): Promise<Result<T>> {
     if (this.options.functionsUrl) return this.fnDirect(name, body, schema);
     try {
       const { data, error } = await this.supabase.functions.invoke(name, { body });
@@ -75,7 +83,11 @@ export class RoomApi {
     }
   }
 
-  private async fnDirect<T>(name: string, body: Record<string, unknown>, schema?: z.ZodType<T>): Promise<Result<T>> {
+  private async fnDirect<T>(
+    name: string,
+    body: Record<string, unknown>,
+    schema?: z.ZodType<T>,
+  ): Promise<Result<T>> {
     try {
       const { data } = await this.supabase.auth.getSession();
       const token = data.session?.access_token;
@@ -91,6 +103,26 @@ export class RoomApi {
     }
   }
 
+  async movies(): Promise<Array<{ id: string; title: string; poster_path: string | null }>> {
+    const { data, error } = await this.supabase
+      .from('movie_library')
+      .select('id,title,poster_path')
+      .eq('status', 'ready')
+      .order('created_at', { ascending: false });
+    if (error) throw new Error('Movie library unavailable');
+    return data ?? [];
+  }
+  async poster(path: string): Promise<string | null> {
+    const { data } = await this.supabase.storage.from('posters').createSignedUrl(path, 3600);
+    return data?.signedUrl ?? null;
+  }
+  moviePlayUrl(roomId: string, engineSession: string) {
+    return this.fn(
+      'movie-play-url',
+      { room_id: roomId, engine_session: engineSession },
+      z.object({ url: z.string().url(), expires_at: z.string() }),
+    );
+  }
   serverTime() {
     return this.rpc('server_time', {}, z.number());
   }
@@ -114,7 +146,12 @@ export class RoomApi {
   }
 
   touchMember(roomId: string, engineSession: string, buffering: boolean, syncMode: SyncMode) {
-    return this.rpc('touch_member', { room_id: roomId, engine_session: engineSession, buffering, sync_mode: syncMode });
+    return this.rpc('touch_member', {
+      room_id: roomId,
+      engine_session: engineSession,
+      buffering,
+      sync_mode: syncMode,
+    });
   }
 
   leaveRoom(roomId: string) {
@@ -211,10 +248,18 @@ export class RoomApi {
   }
 
   turnCredentials(roomId: string, engineSession: string) {
-    return this.fn('turn-credentials', { room_id: roomId, engine_session: engineSession }, z.object({ iceServers: z.array(z.any()) }));
+    return this.fn(
+      'turn-credentials',
+      { room_id: roomId, engine_session: engineSession },
+      z.object({ iceServers: z.array(z.any()) }),
+    );
   }
 
   livekitToken(roomId: string, engineSession: string) {
-    return this.fn('livekit-token', { room_id: roomId, engine_session: engineSession }, z.object({ url: z.string(), token: z.string() }));
+    return this.fn(
+      'livekit-token',
+      { room_id: roomId, engine_session: engineSession },
+      z.object({ url: z.string(), token: z.string() }),
+    );
   }
 }

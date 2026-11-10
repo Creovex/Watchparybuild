@@ -12,6 +12,7 @@
     "db:reset": "supabase db reset",
     "db:test": "supabase test db",
     "db:concurrency": "DENO_NO_PACKAGE_JSON=1 deno run --no-config --allow-net --allow-env supabase/tests/concurrency.ts",
+    "db:movies": "DENO_NO_PACKAGE_JSON=1 deno run --no-config --allow-net --allow-env supabase/tests/movie-concurrency.ts",
     "db:s6": "DENO_NO_PACKAGE_JSON=1 deno test --no-config --allow-net --allow-env supabase/tests/realtime/s6.test.ts",
     "fn:test": "DENO_NO_PACKAGE_JSON=1 deno test --config supabase/tests/functions/deno.json --allow-net --allow-env --allow-read supabase/tests/functions",
     "e2e": "playwright test",

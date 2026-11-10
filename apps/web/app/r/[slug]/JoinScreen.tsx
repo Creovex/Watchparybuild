@@ -1,6 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { movieCall } from '@/lib/movie-api';
+import { readJoinKey } from './key';
 import { isPaidSource, SOURCE_LABEL, type ErrorCode, type RoomPreview } from '@watchparty/sync-core';
 import { Button, Icon, Notice, SeatRow } from '@watchparty/ui';
 import type { FatalKind } from '@watchparty/ui/room';
@@ -14,7 +17,9 @@ function Shell({ children }: { children: React.ReactNode }) {
       <header className="safe-top px-4 sm:px-6">
         <Wordmark />
       </header>
-      <main className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center gap-6 px-4 pb-16 pt-6 sm:px-6">{children}</main>
+      <main className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center gap-6 px-4 pb-16 pt-6 sm:px-6">
+        {children}
+      </main>
     </div>
   );
 }
@@ -25,7 +30,9 @@ export function SignedOutGate({ slug }: { slug: string }) {
       <div className="flex flex-col gap-3">
         <p className="slate">You&rsquo;re invited</p>
         <h1 className="marquee text-6xl">Join the room</h1>
-        <p className="text-muted">Sign in to see what&rsquo;s playing and take your seat. Everyone in a room is signed in.</p>
+        <p className="text-muted">
+          Sign in to see what&rsquo;s playing and take your seat. Everyone in a room is signed in.
+        </p>
       </div>
       <GoogleSignInButton next={`/r/${slug}`} />
       <p className="text-sm text-faint">
@@ -37,24 +44,50 @@ export function SignedOutGate({ slug }: { slug: string }) {
 }
 
 export function JoinScreen({
+  slug,
   preview,
   error,
   roomCap,
   busy,
   onJoin,
 }: {
+  slug: string;
   preview: RoomPreview | null;
   error: ErrorCode | null;
   roomCap?: number;
   busy: boolean;
   onJoin: () => void;
 }) {
+  const [movie, setMovie] = useState<{
+    title: string;
+    host_name: string | null;
+    poster_url: string | null;
+  } | null>(null);
+  useEffect(() => {
+    let active = true;
+    if (preview?.source === 'upload')
+      void movieCall<{ title: string; host_name: string | null; poster_url: string | null }>('movie-invite', {
+        slug,
+        join_key: readJoinKey(slug),
+      })
+        .then((data) => {
+          if (active) setMovie(data);
+        })
+        .catch(() => {
+          if (active) setMovie(null);
+        });
+    return () => {
+      active = false;
+    };
+  }, [slug, preview?.source]);
   if (!preview) {
     return (
       <Shell>
         <div className="flex flex-col gap-3">
           <p className="slate">Room link</p>
-          <h1 className="marquee text-6xl">{error === 'not_member' ? 'You left this room' : 'No room here'}</h1>
+          <h1 className="marquee text-6xl">
+            {error === 'not_member' ? 'You left this room' : 'No room here'}
+          </h1>
           <p className="text-muted">{errorSentence(error ?? 'not_found')}</p>
         </div>
         <Link href="/home" className="inline-flex min-h-11 items-center gap-2 font-semibold text-amber">
@@ -74,8 +107,18 @@ export function JoinScreen({
         <p className="slate">
           {preview.visibility === 'private' ? 'Private room' : 'Public room'} · {SOURCE_LABEL[preview.source]}
         </p>
+        {movie ? (
+          <>
+            <p>
+              {movie.host_name ?? 'The host'} invited you to watch {movie.title}
+            </p>
+            {movie.poster_url ? (
+              <img src={movie.poster_url} alt="" className="aspect-video w-full rounded-xl object-cover" />
+            ) : null}
+          </>
+        ) : null}
         <h1 className="text-4xl font-bold leading-tight [overflow-wrap:anywhere]" data-testid="preview-title">
-          {preview.title}
+          {movie?.title ?? preview.title}
         </h1>
         <div className="flex items-center gap-3">
           <SeatRow cap={preview.room_cap} taken={Math.min(preview.present_count, preview.room_cap)} />
@@ -93,14 +136,16 @@ export function JoinScreen({
 
       {isPaidSource(preview.source) ? (
         <Notice title={`You need your own ${SOURCE_LABEL[preview.source]} subscription`}>
-          Netflix, Prime and Disney+ play in their own app or tab here, so syncing is guided. YouTube syncs automatically
-          everywhere.
+          Netflix, Prime and Disney+ play in their own app or tab here, so syncing is guided. YouTube syncs
+          automatically everywhere.
         </Notice>
       ) : null}
 
       {error || (full && !closed) ? (
         <div data-testid="join-error">
-          <Notice tone="error">{errorSentence(error ?? 'room_full', { roomCap: roomCap ?? preview.room_cap })}</Notice>
+          <Notice tone="error">
+            {errorSentence(error ?? 'room_full', { roomCap: roomCap ?? preview.room_cap })}
+          </Notice>
         </div>
       ) : null}
 
@@ -110,7 +155,14 @@ export function JoinScreen({
           Your rooms
         </Link>
       ) : (
-        <Button variant="primary" size="lg" icon="seat" busy={busy} onClick={onJoin} disabled={full && !error}>
+        <Button
+          variant="primary"
+          size="lg"
+          icon="seat"
+          busy={busy}
+          onClick={onJoin}
+          disabled={full && !error}
+        >
           {full ? 'Room is full' : 'Take your seat'}
         </Button>
       )}
@@ -118,7 +170,10 @@ export function JoinScreen({
   );
 }
 
-const FATAL: Record<Exclude<FatalKind, 'left' | 'not_member' | 'handed_over'>, { title: string; body: (cap?: number) => string }> = {
+const FATAL: Record<
+  Exclude<FatalKind, 'left' | 'not_member' | 'handed_over'>,
+  { title: string; body: (cap?: number) => string }
+> = {
   removed: { title: 'You were removed', body: () => 'You were removed from this room.' },
   banned: { title: 'You were removed', body: () => 'You were removed from this room.' },
   closed: { title: 'Room closed', body: () => 'This room was closed.' },
@@ -126,7 +181,15 @@ const FATAL: Record<Exclude<FatalKind, 'left' | 'not_member' | 'handed_over'>, {
   room_full: { title: 'Room full', body: (cap) => errorSentence('room_full', { roomCap: cap }) },
 };
 
-export function FatalScreen({ kind, roomCap, onRejoin }: { kind: FatalKind; roomCap?: number; onRejoin: () => void }) {
+export function FatalScreen({
+  kind,
+  roomCap,
+  onRejoin,
+}: {
+  kind: FatalKind;
+  roomCap?: number;
+  onRejoin: () => void;
+}) {
   const entry = FATAL[kind as keyof typeof FATAL];
   if (!entry) return null;
   return (

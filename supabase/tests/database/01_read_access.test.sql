@@ -49,8 +49,8 @@ select is(
    where p.pronamespace = 'public'::regnamespace
      and not exists (select 1 from pg_depend d where d.classid = 'pg_proc'::regclass and d.objid = p.oid and d.deptype = 'e')
      and has_function_privilege('authenticated', p.oid, 'execute')),
-  array['close_room', 'create_room', 'delete_message', 'get_room_link', 'is_member', 'join_room', 'leave_room',
-        'moderate', 'post_system', 'realtime_topic_allowed', 'room_preview', 'rotate_join_key', 'send_chat',
+  array['can_view_movie', 'close_room', 'create_room', 'delete_message', 'get_room_link', 'is_member', 'join_room', 'leave_room',
+        'moderate', 'movie_invitation', 'movie_set_poster', 'movie_usage', 'post_system', 'poster_movie_id', 'realtime_topic_allowed', 'room_preview', 'rotate_join_key', 'send_chat',
         'server_time', 'set_playback', 'set_source', 'touch_member', 'transfer_host', 'update_room_settings',
         'valid_content_ref'],
   'functions: signed in users execute exactly the RPCs, the two policy helpers and valid_content_ref'
@@ -71,7 +71,7 @@ select is(
      and not exists (select 1 from pg_depend d where d.classid = 'pg_proc'::regclass and d.objid = p.oid and d.deptype = 'e')
      and has_function_privilege('authenticated', p.oid, 'execute')
      and not p.prosecdef
-     and p.proname <> 'valid_content_ref'),
+     and p.proname not in ('valid_content_ref','poster_movie_id')),
   null,
   'functions: every function signed in users execute, other than valid_content_ref, is SECURITY DEFINER'
 );

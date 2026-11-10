@@ -62,6 +62,14 @@ pnpm db:concurrency
 
 Runs five rounds. In each, a free host creates a room (room cap 3, the host present) and five other people call `join_room` at once from their own clients. Every round must end with exactly two admitted, three refused with `room_full`, and three joined rows. Exits with status 1 otherwise.
 
+## Movie concurrency
+
+```sh
+pnpm db:movies
+```
+
+Requires an empty local movie library and refuses hosted database addresses. Competing accounts reserve more than the shared allowance on separate connections; exactly one reservation must succeed. It also races account deletion against a reservation and confirms that new storage attachment and retries are blocked. The check creates metadata only, never storage objects, and removes its temporary accounts and reservations.
+
 ## Why the scripts set DENO_NO_PACKAGE_JSON
 
 Deno reads the root `package.json` when it finds one, expects npm packages in `node_modules`, and, seeing `pnpm-workspace.yaml`, rewrites `package.json`. The scripts run Deno with `DENO_NO_PACKAGE_JSON=1` and `--no-config` so it uses its own module cache and changes no file.

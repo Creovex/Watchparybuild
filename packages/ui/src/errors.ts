@@ -11,6 +11,13 @@ export interface ErrorContext {
 }
 
 const SENTENCES: Record<ErrorCode, string | ((ctx: ErrorContext) => string)> = {
+  movie_unavailable: 'This movie is no longer available. Ask the host to choose another.',
+  upload_not_allowed: 'Uploads are enabled only for approved accounts.',
+  quota_exceeded: 'This file exceeds your available storage. Delete a movie first.',
+  storage_full: 'The shared movie storage is full. Delete a movie first.',
+  upload_in_progress: 'Another storage operation is still running. Try again in a few minutes.',
+  size_mismatch: 'The uploaded file did not match its expected size. Cancel it and upload the file again.',
+
   invalid_input: 'Something in that request was not valid. Check the details and try again.',
   too_many_rooms: 'You already host 20 open rooms. Close one before starting another.',
   internal: 'Something went wrong on our side. Try again in a moment.',
@@ -19,8 +26,7 @@ const SENTENCES: Record<ErrorCode, string | ((ctx: ErrorContext) => string)> = {
   locked: 'The host has locked this room, so only people who were here before can come in.',
   banned: "You can't join this room.",
   removed: 'You were removed from this room. The host can let you back in.',
-  bad_key:
-    'This private room link is missing its key or the key has changed. Ask the host for a new link.',
+  bad_key: 'This private room link is missing its key or the key has changed. Ask the host for a new link.',
   room_full: ({ roomCap }) =>
     roomCap === 10
       ? 'This room is full (10 of 10).'
@@ -34,7 +40,8 @@ const SENTENCES: Record<ErrorCode, string | ((ctx: ErrorContext) => string)> = {
   not_allowed: "You can't delete that message.",
   rate_limited: "You're sending messages too fast. Wait a few seconds.",
   unauthorized: 'Your sign in has expired. Sign in again to continue.',
-  wrong_voice_mode: "Voice for this room isn't set up the way this request expected. Leave voice and join again.",
+  wrong_voice_mode:
+    "Voice for this room isn't set up the way this request expected. Leave voice and join again.",
   voice_muted: 'The host muted you.',
   voice_sync_failed:
     "The change was saved, but the voice server didn't confirm it. It applies the next time they reconnect.",

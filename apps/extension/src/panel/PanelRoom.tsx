@@ -1,3 +1,4 @@
+import { SITE_URL } from '../shared/env';
 import { useEffect, useMemo, useState } from 'react';
 import { SOURCE_LABEL, type MessageRow } from '@watchparty/sync-core';
 import { Button, cx, Icon, IconButton, Notice, Sheet, useToast } from '@watchparty/ui';
@@ -58,7 +59,8 @@ export function PanelRoom({
   useEffect(
     () =>
       controller.onNotice((notice) => {
-        if (notice.code) toast(errorSentence(notice.code, { roomCap: controller.store.get().room?.room_cap }), notice.tone);
+        if (notice.code)
+          toast(errorSentence(notice.code, { roomCap: controller.store.get().room?.room_cap }), notice.tone);
         else if (notice.message) toast(notice.message, notice.tone);
       }),
     [controller, toast],
@@ -74,7 +76,14 @@ export function PanelRoom({
   }, [session, voice]);
 
   // The floating control in full screen shows the microphone state and can mute or unmute.
-  const indicator = voice.state === 'idle' || voice.state === 'failed' ? 'off' : voice.local.hostMuted ? 'host_muted' : voice.local.micEnabled ? 'live' : 'muted';
+  const indicator =
+    voice.state === 'idle' || voice.state === 'failed'
+      ? 'off'
+      : voice.local.hostMuted
+        ? 'host_muted'
+        : voice.local.micEnabled
+          ? 'live'
+          : 'muted';
   useEffect(() => session.setVoiceIndicator(indicator), [session, indicator]);
   useEffect(
     () =>
@@ -85,9 +94,20 @@ export function PanelRoom({
   );
 
   const timed = useMemo(() => room.messages.filter((m) => m.kind === 'timed'), [room.messages]);
-  const othersInVoice = room.presence.filter((p) => p.user_id !== me.id && p.voice !== 'off').map((p) => p.user_id);
+  const othersInVoice = room.presence
+    .filter((p) => p.user_id !== me.id && p.voice !== 'off')
+    .map((p) => p.user_id);
   const current = room.room;
   if (!current) return null;
+  if (current.source === 'upload')
+    return (
+      <div className="p-5">
+        <p>This room plays on the website. Open it there.</p>
+        <a href={`${SITE_URL}/r/${current.slug}`} target="_blank" rel="noreferrer">
+          Open room
+        </a>
+      </div>
+    );
   const isHost = current.host_id === me.id;
   const service = SOURCE_LABEL[current.source];
   const nameOf = (id: string | null) => controller.nameOf(id);
@@ -122,7 +142,9 @@ export function PanelRoom({
             </p>
           </div>
           <IconButton icon="volume" label="My settings" onClick={() => setSheet('mine')} />
-          {isHost ? <IconButton icon="sliders" label="Room settings" onClick={() => setSheet('host')} /> : null}
+          {isHost ? (
+            <IconButton icon="sliders" label="Room settings" onClick={() => setSheet('host')} />
+          ) : null}
           <IconButton icon="chevronRight" label="Hide the room panel" onClick={() => session.collapse()} />
         </header>
 
@@ -130,7 +152,9 @@ export function PanelRoom({
         {room.status === 'live' && (!state.peer || !state.video) ? (
           <p className="flex min-h-10 items-center gap-2 px-3 text-sm text-muted" role="status">
             <Icon name="info" size={16} className="shrink-0 text-amber" />
-            {state.peer ? `Waiting for the ${service} player in this tab.` : 'Reconnecting to the player in this tab.'}
+            {state.peer
+              ? `Waiting for the ${service} player in this tab.`
+              : 'Reconnecting to the player in this tab.'}
           </p>
         ) : null}
         <SyncStatus />
@@ -160,14 +184,27 @@ export function PanelRoom({
               )}
             >
               {t.label}
-              {tab === t.id ? <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-amber" aria-hidden="true" /> : null}
+              {tab === t.id ? (
+                <span
+                  className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-amber"
+                  aria-hidden="true"
+                />
+              ) : null}
             </button>
           ))}
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col" role="tabpanel" aria-label={tab === 'chat' ? 'Chat' : 'People'}>
+        <div
+          className="flex min-h-0 flex-1 flex-col"
+          role="tabpanel"
+          aria-label={tab === 'chat' ? 'Chat' : 'People'}
+        >
           <div className="relative flex min-h-0 flex-1 flex-col">
-            {tab === 'chat' ? <ChatList onMessageMenu={setMessageMenu} /> : <PeopleList onMemberMenu={setMemberMenu} speaking={voice.speaking} />}
+            {tab === 'chat' ? (
+              <ChatList onMessageMenu={setMessageMenu} />
+            ) : (
+              <PeopleList onMemberMenu={setMemberMenu} speaking={voice.speaking} />
+            )}
             {band}
           </div>
           {tab === 'chat' ? <ChatComposer /> : null}
@@ -224,7 +261,15 @@ export function PanelRoom({
   );
 }
 
-function EpisodeNotice({ session, state, service }: { session: PanelSession; state: PanelState; service: string }) {
+function EpisodeNotice({
+  session,
+  state,
+  service,
+}: {
+  session: PanelSession;
+  state: PanelState;
+  service: string;
+}) {
   const [busy, setBusy] = useState(false);
   if (state.episode === 'match') return null;
   if (state.episode === 'guest_elsewhere') {
@@ -274,10 +319,14 @@ function EpisodeNotice({ session, state, service }: { session: PanelSession; sta
 
 function MicButton({ voice, onJoinVoice }: { voice: RoomVoice; onJoinVoice: () => void }) {
   if (voice.state === 'failed') {
-    return <IconButton icon="sync" label="Rejoin voice" showLabel tone="danger" onClick={() => voice.join()} />;
+    return (
+      <IconButton icon="sync" label="Rejoin voice" showLabel tone="danger" onClick={() => voice.join()} />
+    );
   }
-  if (voice.state === 'idle') return <IconButton icon="mic" label="Join voice" showLabel onClick={onJoinVoice} />;
-  if (voice.local.hostMuted) return <IconButton icon="micOff" label="Muted by host" showLabel tone="muted" disabled />;
+  if (voice.state === 'idle')
+    return <IconButton icon="mic" label="Join voice" showLabel onClick={onJoinVoice} />;
+  if (voice.local.hostMuted)
+    return <IconButton icon="micOff" label="Muted by host" showLabel tone="muted" disabled />;
   return (
     <IconButton
       icon={voice.local.micEnabled ? 'mic' : 'micOff'}
@@ -306,7 +355,12 @@ function Controls({
   const inVoice = voice.state !== 'idle' && voice.state !== 'failed';
   const [leaving, setLeaving] = useState(false);
   return (
-    <div className="flex items-center justify-around" role="toolbar" aria-label="Room controls" data-voice-state={voice.state}>
+    <div
+      className="flex items-center justify-around"
+      role="toolbar"
+      aria-label="Room controls"
+      data-voice-state={voice.state}
+    >
       <MicButton voice={voice} onJoinVoice={onJoinVoice} />
       <IconButton
         icon={voice.local.cameraEnabled ? 'camera' : 'cameraOff'}
@@ -317,8 +371,17 @@ function Controls({
         disabled={!inVoice || voice.local.hostMuted}
         onClick={() => void voice.setCamera(!voice.local.cameraEnabled)}
       />
-      {inVoice ? <IconButton icon="headphones" label="Leave voice" showLabel onClick={() => void voice.leave()} /> : null}
-      <IconButton icon="smile" label="React" showLabel tone={trayOpen ? 'active' : 'default'} aria-expanded={trayOpen} onClick={onTray} />
+      {inVoice ? (
+        <IconButton icon="headphones" label="Leave voice" showLabel onClick={() => void voice.leave()} />
+      ) : null}
+      <IconButton
+        icon="smile"
+        label="React"
+        showLabel
+        tone={trayOpen ? 'active' : 'default'}
+        aria-expanded={trayOpen}
+        onClick={onTray}
+      />
       <IconButton
         icon="leave"
         label={leaving ? 'Leaving' : 'Leave'}
@@ -375,7 +438,8 @@ function VoiceSheet({ open, onClose, voice }: { open: boolean; onClose: () => vo
     >
       <div className="flex flex-col gap-3">
         <p className="text-muted">
-          Your browser will ask to use your microphone so the room can hear you. Your camera stays off until you turn it on.
+          Your browser will ask to use your microphone so the room can hear you. Your camera stays off until
+          you turn it on.
         </p>
         {tip ? (
           <p className="flex items-start gap-2 rounded-lg bg-surface-1 px-3 py-2.5 text-sm">

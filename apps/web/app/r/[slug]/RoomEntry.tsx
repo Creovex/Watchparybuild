@@ -2,7 +2,13 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { deviceKind, isPaidSource, type ErrorCode, type RoomPreview, type Source } from '@watchparty/sync-core';
+import {
+  deviceKind,
+  isPaidSource,
+  type ErrorCode,
+  type RoomPreview,
+  type Source,
+} from '@watchparty/sync-core';
 import { RoomController, useRoom, type Me } from '@watchparty/ui/room';
 import { Wordmark } from '@/components/Wordmark';
 import { getBrowserClient } from '@/lib/supabase/client';
@@ -71,7 +77,8 @@ export function RoomEntry({ slug, me }: { slug: string; me: RoomMe | null }) {
       }
       // A paid source room joined as cue sync; correct the mode if the source was not known yet.
       const joinedSource = res.data.room.source;
-      if (syncModeFor(joinedSource) !== syncModeFor(source ?? 'youtube')) controller.setSyncMode(syncModeFor(joinedSource));
+      if (syncModeFor(joinedSource) !== syncModeFor(source ?? 'youtube'))
+        controller.setSyncMode(syncModeFor(joinedSource));
       controllerRef.current = controller;
       setPhase({ kind: 'room', controller });
     },
@@ -84,13 +91,22 @@ export function RoomEntry({ slug, me }: { slug: string; me: RoomMe | null }) {
     let cancelled = false;
     (async () => {
       const supabase = getBrowserClient();
-      const { data: room } = await supabase.from('room_view').select('id, source, status').eq('slug', slug).maybeSingle();
+      const { data: room } = await supabase
+        .from('room_view')
+        .select('id, source, status')
+        .eq('slug', slug)
+        .maybeSingle();
       if (cancelled) return;
       if (room && room.status === 'open') {
         await join(room.source as Source);
         return;
       }
-      const preview = await new RoomController({ supabase, me, device: 'desktop', engine: 'page' }).api.roomPreview(slug);
+      const preview = await new RoomController({
+        supabase,
+        me,
+        device: 'desktop',
+        engine: 'page',
+      }).api.roomPreview(slug);
       if (cancelled) return;
       setPhase({
         kind: 'preview',
@@ -119,6 +135,7 @@ export function RoomEntry({ slug, me }: { slug: string; me: RoomMe | null }) {
   if (phase.kind === 'preview') {
     return (
       <JoinScreen
+        slug={slug}
         preview={phase.preview}
         error={phase.error}
         roomCap={phase.roomCap ?? phase.preview?.room_cap}
@@ -167,7 +184,12 @@ function RoomLive({
     if (state.fatal === 'not_member') onNotMember();
   }, [state.fatal, onLeft, onNotMember]);
 
-  if (state.fatal && state.fatal !== 'left' && state.fatal !== 'not_member' && state.fatal !== 'handed_over') {
+  if (
+    state.fatal &&
+    state.fatal !== 'left' &&
+    state.fatal !== 'not_member' &&
+    state.fatal !== 'handed_over'
+  ) {
     return <FatalScreen kind={state.fatal} roomCap={state.room?.room_cap} onRejoin={onRejoin} />;
   }
   return <RoomStage controller={controller} me={me} onRejoin={onRejoin} />;

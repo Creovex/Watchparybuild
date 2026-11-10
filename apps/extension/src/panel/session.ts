@@ -1,9 +1,21 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { isPaidSource, parsePaidRef, type AdapterCapabilities, type PaidSource, type ReactionEmoji } from '@watchparty/sync-core';
+import {
+  isPaidSource,
+  parsePaidRef,
+  type AdapterCapabilities,
+  type PaidSource,
+  type ReactionEmoji,
+} from '@watchparty/sync-core';
 import { RoomController, Store, type FatalKind, type Me } from '@watchparty/ui/room';
 import type { RoomRecord } from '../background/core';
 import { roomKey, tokensKey } from '../shared/keys';
-import type { ContentToPanel, PanelToContent, PanelToWorker, ToPanel, VoiceIndicator } from '../shared/messages';
+import type {
+  ContentToPanel,
+  PanelToContent,
+  PanelToWorker,
+  ToPanel,
+  VoiceIndicator,
+} from '../shared/messages';
 import { titleKey } from '../shared/services';
 import { errorSentence } from './errors';
 import { PortEngineHost } from './port-engine-host';
@@ -132,7 +144,9 @@ export class PanelSession {
         return;
       case 'fullscreen':
         this.store.set({ fullscreen: message.on });
-        this.unreadBaseline = message.on ? new Set(this.controller?.store.get().messages.map((m) => m.id) ?? []) : null;
+        this.unreadBaseline = message.on
+          ? new Set(this.controller?.store.get().messages.map((m) => m.id) ?? [])
+          : null;
         this.sendFullscreenState();
         return;
       case 'fs_action':
@@ -217,9 +231,21 @@ export class PanelSession {
     this.evaluateEpisode();
   }
 
-  private async loadMe(supabase: SupabaseClient, userId: string, metadata: Record<string, unknown>): Promise<PanelMe> {
-    const { data } = await supabase.from('profiles').select('display_name, avatar_url, duck_level').eq('id', userId).maybeSingle();
-    const profile = data as { display_name?: string; avatar_url?: string | null; duck_level?: number | null } | null;
+  private async loadMe(
+    supabase: SupabaseClient,
+    userId: string,
+    metadata: Record<string, unknown>,
+  ): Promise<PanelMe> {
+    const { data } = await supabase
+      .from('profiles')
+      .select('display_name, avatar_url, duck_level')
+      .eq('id', userId)
+      .maybeSingle();
+    const profile = data as {
+      display_name?: string;
+      avatar_url?: string | null;
+      duck_level?: number | null;
+    } | null;
     const fallbackName = typeof metadata.full_name === 'string' ? metadata.full_name : 'You';
     return {
       id: userId,
@@ -235,7 +261,9 @@ export class PanelSession {
 
   private async writeTokens(accessToken: string, refreshToken: string): Promise<void> {
     if (!this.record) return;
-    await this.deps.storage.set({ [tokensKey(this.record.room_id)]: { access_token: accessToken, refresh_token: refreshToken } });
+    await this.deps.storage.set({
+      [tokensKey(this.record.room_id)]: { access_token: accessToken, refresh_token: refreshToken },
+    });
   }
 
   // Engine ------------------------------------------------------------------------------------------
@@ -259,7 +287,12 @@ export class PanelSession {
     const host = this.host;
     if (!controller || !host || this.finished) return;
     const status = controller.store.get().status;
-    const shouldAttach = this.store.get().episode === 'match' && status !== 'fatal' && status !== 'idle';
+    const room = controller.store.get().room;
+    const shouldAttach =
+      Boolean(room && isPaidSource(room.source)) &&
+      this.store.get().episode === 'match' &&
+      status !== 'fatal' &&
+      status !== 'idle';
     if (shouldAttach && !this.engineAttached) {
       controller.attachEngine(host);
       this.engineAttached = true;
@@ -329,7 +362,15 @@ export class PanelSession {
     const controller = this.controller;
     if (!controller) return;
     const snapshot = controller.store.get();
-    if (snapshot.room && (snapshot.room.content_ref !== this.lastRoomRef || snapshot.room.host_id !== this.lastHostId)) {
+    if (snapshot.room && !isPaidSource(snapshot.room.source) && this.engineAttached) {
+      this.engineAttached = false;
+      controller.detachEngine();
+      this.host?.stop();
+    }
+    if (
+      snapshot.room &&
+      (snapshot.room.content_ref !== this.lastRoomRef || snapshot.room.host_id !== this.lastHostId)
+    ) {
       this.lastRoomRef = snapshot.room.content_ref;
       this.lastHostId = snapshot.room.host_id;
       this.evaluateEpisode();
@@ -406,7 +447,8 @@ export class PanelSession {
     if (!baseline || !controller) return 0;
     return controller.store
       .get()
-      .messages.filter((m) => m.kind !== 'system' && m.user_id !== controller.userId && !baseline.has(m.id)).length;
+      .messages.filter((m) => m.kind !== 'system' && m.user_id !== controller.userId && !baseline.has(m.id))
+      .length;
   }
 
   private sendFullscreenState(): void {

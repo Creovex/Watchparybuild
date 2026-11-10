@@ -433,3 +433,13 @@ The implementation begins with a disabled owner-only storage proof. Its function
 The signing dependency `aws4fetch` uses the MIT licence. Its exact import pin and package integrity are retained in the Deno lockfile. Part requests sign the content length; only a live browser test can confirm that the provider enforces it. Movie data never needs to pass through an application function.
 
 The complete movie library, quota migration, synchronized movie player and Android release remain outstanding while the initial external proof is blocked. An owner-only proof is not a finished upload feature.
+
+## Movie library implementation
+
+The owner changed upload access to two selected accounts while retaining the same shared site cap. Profile quotas are configured on the hosted database; account addresses are not committed. A separate service-only lifecycle function serializes reservations and uses operation leases, while clients read only the library and authorized room metadata views.
+
+The codec parser uses `mp4box` under the BSD licence and checks WebM track elements directly. `qrcode` uses the MIT licence. Bubblewrap uses the Apache licence. Exact dependency pins remain in manifests and lockfiles.
+
+The movie source uses the existing synchronization engine through an HTML video adapter. Programmatic controls suppress corresponding user-action events, and browser autoplay refusals retain the existing tap-to-play flow. Invitation posters are signed only after checking the private room key or current membership. The service cleanup worker uses a dedicated secret in addition to gateway authentication; its scheduler credentials are encrypted in Vault.
+
+The Android source is generated reproducibly from the committed manifest rather than committing generated native output. Distribution is gated on signing, website certificate association and device checks. Implementation status and verification evidence are recorded in `docs/movie-implementation.md`.

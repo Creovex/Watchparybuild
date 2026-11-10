@@ -3,6 +3,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
+import { cleanupAccountMovies } from '../_shared/movie-handler.ts';
 import { verifyWithAuth, type VerifyJwt } from '../_shared/clients.ts';
 import type { Env } from '../_shared/env.ts';
 import { createHandler, type Handler } from '../_shared/handler.ts';
@@ -15,6 +16,7 @@ export interface DeleteAccountDeps {
   env: Env;
   admin: SupabaseClient;
   verify?: VerifyJwt;
+  cleanupMovies?: (caller: string) => Promise<void>;
 }
 
 export function createDeleteAccountHandler(deps: DeleteAccountDeps): Handler {
@@ -24,6 +26,7 @@ export function createDeleteAccountHandler(deps: DeleteAccountDeps): Handler {
     verify: deps.verify ?? verifyWithAuth(deps.admin),
     input: DeleteAccountInput,
     async run({ caller }) {
+      await (deps.cleanupMovies ?? ((id) => cleanupAccountMovies(deps, id)))(caller.id);
       // Closing through an update fires the room trigger, so every member sees "This room was closed".
       const closed = await deps.admin
         .from('rooms')

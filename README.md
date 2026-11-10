@@ -92,6 +92,8 @@ Then load `apps/extension/dist` unpacked in `chrome://extensions` or `edge://ext
 
 Vercel Hobby is for non commercial use and Supabase free projects pause after a week without activity (gaps G6 and G7); both need paid plans before a public launch.
 
-## Movie storage work
+## Uploaded movies and Android
 
-The uploaded movie feature is in progress. [Private storage setup](infrastructure/r2/README.md) contains the Cloudflare bucket configuration and the disabled owner-only browser proof. Movie uploads, library quotas and the Android release are not yet available. The outstanding proofs and deployment prerequisites are tracked as G44 to G53 in [gaps](docs/gaps.md).
+The movie library, direct private storage uploads and synchronized HTML video playback are implemented. Approved accounts share a capped storage pool; other members may watch by joining a private room. [Implementation and verification](docs/movie-implementation.md) records what ran and the remaining release gates. [Private storage setup](infrastructure/r2/README.md) contains the bucket configuration.
+
+Browser uploads require the bucket CORS policy. The Android project builds an unsigned package; signed distribution requires the signing configuration in [Android setup](apps/android/README.md). A preview deployment is not evidence that the live site or a signed Android release is ready.

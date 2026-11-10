@@ -6,3 +6,5 @@ export * from './People';
 export * from './Status';
 export * from './CuePanel';
 export * from './Sheets';
+
+export * from './MoviePicker';

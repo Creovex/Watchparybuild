@@ -22,3 +22,10 @@ e2e/fixtures/*.webm
 .vercel/
 apps/web/public/e2e/
 apps/web/next-env.d.ts
+
+# Python tooling caches and private Android signing material.
+__pycache__/
+*.keystore
+*.jks
+*.apk
+*.aab

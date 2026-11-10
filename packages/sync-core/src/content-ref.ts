@@ -1,4 +1,4 @@
-import type { Source } from './schemas';
+import type { Source, PaidSource } from './schemas';
 
 // Content references: the identifier of a title on its source. The database applies the same rules
 // in `public.valid_content_ref`, so a reference accepted here is accepted there.
@@ -10,7 +10,7 @@ export type ContentRefResult =
 const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
 const YOUTUBE_HOSTS = /^(www\.|m\.|music\.)?youtube\.com$/;
 
-export const PAID_SOURCE_HOSTS: Record<Exclude<Source, 'youtube'>, RegExp> = {
+export const PAID_SOURCE_HOSTS: Record<PaidSource, RegExp> = {
   netflix: /^(www\.)?netflix\.com$/,
   prime: /^(www\.)?(primevideo\.com|amazon\.(com|co\.uk|de|ca))$/,
   disney: /^(www\.)?disneyplus\.com$/,
@@ -45,7 +45,7 @@ export function parseYouTubeRef(raw: string): ContentRefResult {
   return { ok: false, reason: 'invalid' };
 }
 
-export function parsePaidRef(source: Exclude<Source, 'youtube'>, raw: string): ContentRefResult {
+export function parsePaidRef(source: PaidSource, raw: string): ContentRefResult {
   const input = raw.trim();
   if (!input) return { ok: false, reason: 'empty' };
   let url: URL;
@@ -60,7 +60,15 @@ export function parsePaidRef(source: Exclude<Source, 'youtube'>, raw: string): C
   return { ok: true, ref: url.toString() };
 }
 
+export function parseUploadRef(raw: string): ContentRefResult {
+  const ref = raw.trim();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(ref)
+    ? { ok: true, ref }
+    : { ok: false, reason: ref ? 'invalid' : 'empty' };
+}
+
 export function parseContentRef(source: Source, raw: string): ContentRefResult {
+  if (source === 'upload') return parseUploadRef(raw);
   return source === 'youtube' ? parseYouTubeRef(raw) : parsePaidRef(source, raw);
 }
 
@@ -70,6 +78,7 @@ export function contentUrl(source: Source, ref: string): string {
 }
 
 export const SOURCE_LABEL: Record<Source, string> = {
+  upload: 'My movies',
   youtube: 'YouTube',
   netflix: 'Netflix',
   prime: 'Prime Video',

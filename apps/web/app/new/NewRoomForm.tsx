@@ -12,12 +12,13 @@ import {
   type Visibility,
 } from '@watchparty/sync-core';
 import { Button, ChoiceGroup, Icon, Notice, SeatRow, TextField, useCopy } from '@watchparty/ui';
-import { RoomApi } from '@watchparty/ui/room';
+import { MoviePicker, RoomApi } from '@watchparty/ui/room';
 import { CLIENT_SENTENCES, errorSentence } from '@/lib/errors';
 import { defaultRoomName } from '@/lib/room-name';
 import { getBrowserClient } from '@/lib/supabase/client';
 
 const SOURCE_OPTIONS: Array<{ value: Source; label: string }> = [
+  { value: 'upload', label: 'My movies' },
   { value: 'youtube', label: 'YouTube' },
   { value: 'netflix', label: 'Netflix' },
   { value: 'prime', label: 'Prime Video' },
@@ -25,6 +26,10 @@ const SOURCE_OPTIONS: Array<{ value: Source; label: string }> = [
 ];
 
 export function NewRoomForm({ cap, hostName }: { cap: number; hostName?: string | null }) {
+  const [api, setApi] = useState<RoomApi | null>(null);
+  useEffect(() => {
+    setApi(new RoomApi(getBrowserClient()));
+  }, []);
   const startingName = defaultRoomName(hostName);
   const [title, setTitle] = useState(startingName);
   // Once someone types a name of their own, nothing fills it in for them again.
@@ -103,6 +108,9 @@ export function NewRoomForm({ cap, hostName }: { cap: number; hostName?: string 
         void submit();
       }}
     >
+      <Link href="/movies" className="underline">
+        Watch together from your movie library
+      </Link>
       <div className="flex flex-col gap-2">
         <p className="slate">New room · seats {cap}</p>
         <h1 className="marquee text-6xl">Start a room</h1>
@@ -119,7 +127,9 @@ export function NewRoomForm({ cap, hostName }: { cap: number; hostName?: string 
           setNameFromVideo(false);
         }}
         error={titleError}
-        hint={nameFromVideo ? 'Taken from the video. Change it if you like.' : 'Everyone in the room sees this.'}
+        hint={
+          nameFromVideo ? 'Taken from the video. Change it if you like.' : 'Everyone in the room sees this.'
+        }
         autoComplete="off"
       />
 
@@ -130,7 +140,9 @@ export function NewRoomForm({ cap, hostName }: { cap: number; hostName?: string 
             <label
               key={option.value}
               className={`flex min-h-12 cursor-pointer items-center justify-center rounded-lg px-2 text-sm font-semibold ring-1 ring-inset transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-amber ${
-                source === option.value ? 'bg-surface-3 text-amber ring-amber' : 'bg-surface-1 text-muted ring-line hover:text-text'
+                source === option.value
+                  ? 'bg-surface-3 text-amber ring-amber'
+                  : 'bg-surface-1 text-muted ring-line hover:text-text'
               }`}
             >
               <input
@@ -148,22 +160,34 @@ export function NewRoomForm({ cap, hostName }: { cap: number; hostName?: string 
       </fieldset>
 
       <div className="flex flex-col gap-3">
-        <TextField
-          label={source === 'youtube' ? 'YouTube video link' : `${SOURCE_LABEL[source]} title address`}
-          placeholder={source === 'youtube' ? 'https://www.youtube.com/watch?v=…' : `https://www.${source === 'prime' ? 'primevideo' : source === 'disney' ? 'disneyplus' : 'netflix'}.com/…`}
-          value={link}
-          onChange={(e) => setLink(e.target.value)}
-          onBlur={() => link && setTouched(true)}
-          error={linkError}
-          optional
-          inputMode="url"
-          autoComplete="off"
-          hint={
-            source === 'youtube'
-              ? 'A watch link, a youtu.be link, a Shorts link or the video id. You can pick it later in the room.'
-              : 'Open the title on the service and copy the address from the address bar. You can add it later in the room.'
-          }
-        />
+        {source === 'upload' ? (
+          api ? (
+            <MoviePicker api={api} onChoose={setLink} />
+          ) : (
+            <p>Loading your movies…</p>
+          )
+        ) : (
+          <TextField
+            label={source === 'youtube' ? 'YouTube video link' : `${SOURCE_LABEL[source]} title address`}
+            placeholder={
+              source === 'youtube'
+                ? 'https://www.youtube.com/watch?v=…'
+                : `https://www.${source === 'prime' ? 'primevideo' : source === 'disney' ? 'disneyplus' : 'netflix'}.com/…`
+            }
+            value={link}
+            onChange={(e) => setLink(e.target.value)}
+            onBlur={() => link && setTouched(true)}
+            error={linkError}
+            optional
+            inputMode="url"
+            autoComplete="off"
+            hint={
+              source === 'youtube'
+                ? 'A watch link, a youtu.be link, a Shorts link or the video id. You can pick it later in the room.'
+                : 'Open the title on the service and copy the address from the address bar. You can add it later in the room.'
+            }
+          />
+        )}
         {youtubeId ? (
           <div className="flex items-center gap-3 rounded-lg bg-surface-1 p-2 ring-1 ring-line">
             <img
@@ -182,8 +206,9 @@ export function NewRoomForm({ cap, hostName }: { cap: number; hostName?: string 
         ) : null}
         {isPaidSource(source) ? (
           <Notice title={`Everyone needs their own ${SOURCE_LABEL[source]} subscription`}>
-            Netflix, Prime and Disney+ play in their own app or tab here, so syncing is guided. YouTube syncs automatically
-            everywhere. On a computer with the sync extension in Chrome or Edge, it syncs automatically too.
+            Netflix, Prime and Disney+ play in their own app or tab here, so syncing is guided. YouTube syncs
+            automatically everywhere. On a computer with the sync extension in Chrome or Edge, it syncs
+            automatically too.
           </Notice>
         ) : null}
       </div>
@@ -194,8 +219,18 @@ export function NewRoomForm({ cap, hostName }: { cap: number; hostName?: string 
         value={visibility}
         onChange={setVisibility}
         options={[
-          { value: 'private', label: 'Private', description: 'The link carries a secret key. Only people with it can join.', icon: 'lock' },
-          { value: 'public', label: 'Public', description: 'Anyone signed in who has the link can join.', icon: 'unlock' },
+          {
+            value: 'private',
+            label: 'Private',
+            description: 'The link carries a secret key. Only people with it can join.',
+            icon: 'lock',
+          },
+          {
+            value: 'public',
+            label: 'Public',
+            description: 'Anyone signed in who has the link can join.',
+            icon: 'unlock',
+          },
         ]}
       />
 
@@ -205,8 +240,18 @@ export function NewRoomForm({ cap, hostName }: { cap: number; hostName?: string 
         value={controlMode}
         onChange={setControlMode}
         options={[
-          { value: 'host', label: 'Only me', description: 'You play, pause and seek for everyone.', icon: 'crown' },
-          { value: 'everyone', label: 'Everyone', description: 'Anyone in the room can play, pause and seek.', icon: 'people' },
+          {
+            value: 'host',
+            label: 'Only me',
+            description: 'You play, pause and seek for everyone.',
+            icon: 'crown',
+          },
+          {
+            value: 'everyone',
+            label: 'Everyone',
+            description: 'Anyone in the room can play, pause and seek.',
+            icon: 'people',
+          },
         ]}
       />
 
@@ -257,7 +302,10 @@ function RoomTicket({ result }: { result: CreateRoomResult }) {
         </p>
       </div>
 
-      <div className="ticket flex flex-col gap-4 px-6 py-5" style={{ ['--ticket-bg' as string]: 'var(--color-surface-2)', ['--notch-y' as string]: '62%' }}>
+      <div
+        className="ticket flex flex-col gap-4 px-6 py-5"
+        style={{ ['--ticket-bg' as string]: 'var(--color-surface-2)', ['--notch-y' as string]: '62%' }}
+      >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="slate text-amber">Admit {room.room_cap}</p>
@@ -282,7 +330,12 @@ function RoomTicket({ result }: { result: CreateRoomResult }) {
             Share link
           </Button>
         ) : null}
-        <Button variant={canShare ? 'secondary' : 'primary'} size="lg" icon={copied ? 'check' : 'copy'} onClick={() => void copy(room_link)}>
+        <Button
+          variant={canShare ? 'secondary' : 'primary'}
+          size="lg"
+          icon={copied ? 'check' : 'copy'}
+          onClick={() => void copy(room_link)}
+        >
           {copied ? 'Copied' : 'Copy link'}
         </Button>
         <a

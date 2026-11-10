@@ -8,6 +8,8 @@
 // Then point the web app at it with NEXT_PUBLIC_FUNCTIONS_URL=http://127.0.0.1:54331 (end to end
 // tests do this when E2E_FUNCTIONS_URL is set). Local stack only: the service role key it reads is
 // the local stack's own.
+import { createMovieHandler } from '../../functions/_shared/movie-handler.ts';
+import { createMovieInviteHandler } from '../../functions/movie-invite/handler.ts';
 import { createAdminClient, userClientFactory } from '../../functions/_shared/clients.ts';
 import { createDeleteAccountHandler } from '../../functions/delete-account/handler.ts';
 import { createLiveKitTokenHandler } from '../../functions/livekit-token/handler.ts';
@@ -18,6 +20,13 @@ import { createTurnCredentialsHandler } from '../../functions/turn-credentials/h
 const env = Deno.env;
 const admin = createAdminClient(env);
 const handlers: Record<string, (req: Request) => Promise<Response>> = {
+  'movie-upload-start': createMovieHandler('start', { env, admin }),
+  'movie-upload-urls': createMovieHandler('urls', { env, admin }),
+  'movie-upload-complete': createMovieHandler('complete', { env, admin }),
+  'movie-upload-abort': createMovieHandler('abort', { env, admin }),
+  'movie-delete': createMovieHandler('delete', { env, admin }),
+  'movie-play-url': createMovieHandler('play', { env, admin }),
+  'movie-invite': createMovieInviteHandler({ env, admin }),
   'movie-storage-proof': createStorageProofHandler({ env, admin }),
   'turn-credentials': createTurnCredentialsHandler({ env, admin }),
   'livekit-token': createLiveKitTokenHandler({ env, admin }),

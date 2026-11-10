@@ -3,7 +3,7 @@ import { z } from 'zod';
 // Shared schemas. The database, the web app and the extension all exchange these shapes, and every
 // receiver validates with the same schema the sender used.
 
-export const SOURCES = ['youtube', 'netflix', 'prime', 'disney'] as const;
+export const SOURCES = ['youtube', 'netflix', 'prime', 'disney', 'upload'] as const;
 export const PAID_SOURCES = ['netflix', 'prime', 'disney'] as const;
 export const REACTION_EMOJI = ['❤️', '😂', '😮', '😢', '😡', '👏', '🔥', '🍿'] as const;
 export const SYSTEM_CODES = ['waiting_for', 'cue_ready', 'joined', 'left', 'host_changed'] as const;
@@ -203,6 +203,13 @@ export function parseEvent<T>(
 // RPC and Edge Function results -------------------------------------------------------------------
 
 export const RPC_CODES = [
+  'movie_unavailable',
+  'upload_not_allowed',
+  'quota_exceeded',
+  'storage_full',
+  'upload_in_progress',
+  'size_mismatch',
+
   'invalid_input',
   'too_many_rooms',
   'internal',
@@ -224,6 +231,14 @@ export const RPC_CODES = [
 ] as const;
 
 export const FUNCTION_CODES = [
+  'bad_key',
+  'movie_unavailable',
+  'upload_not_allowed',
+  'quota_exceeded',
+  'storage_full',
+  'upload_in_progress',
+  'size_mismatch',
+
   'invalid_input',
   'unauthorized',
   'not_member',

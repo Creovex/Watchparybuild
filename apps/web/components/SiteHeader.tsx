@@ -15,10 +15,22 @@ export function SiteHeader({ profile }: { profile?: HeaderProfile | null }) {
         <Wordmark href={profile ? '/home' : '/'} />
         {profile ? (
           <nav aria-label="Main" className="flex items-center gap-1 text-sm font-semibold">
-            <Link href="/home" className="hidden min-h-11 items-center rounded-lg px-3 hover:bg-surface-3 sm:inline-flex">
+            <Link
+              href="/movies"
+              className="inline-flex min-h-11 items-center rounded-lg px-3 hover:bg-surface-3"
+            >
+              Movies
+            </Link>
+            <Link
+              href="/home"
+              className="hidden min-h-11 items-center rounded-lg px-3 hover:bg-surface-3 sm:inline-flex"
+            >
               Rooms
             </Link>
-            <Link href="/new" className="hidden min-h-11 items-center rounded-lg px-3 hover:bg-surface-3 sm:inline-flex">
+            <Link
+              href="/new"
+              className="hidden min-h-11 items-center rounded-lg px-3 hover:bg-surface-3 sm:inline-flex"
+            >
               New room
             </Link>
             <Link

@@ -1,4 +1,4 @@
-import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { test, expect, type Browser, type Page } from '@playwright/test';
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 const file = process.env.MOVIE_E2E_STATE_FILE;
@@ -6,6 +6,7 @@ if (!file) throw new Error('Set MOVIE_E2E_STATE_FILE to the private temporary te
 const state = JSON.parse(readFileSync(file, 'utf8'));
 const backend: string = state.backend ?? 'https://zkemdupefosllskayozr.supabase.co';
 const functions: string = state.functions ?? backend + '/functions/v1';
+const site = new URL(process.env.MOVIE_E2E_BASE_URL ?? 'http://localhost:3100');
 for (const session of [state.session, state.guest_session])
   if (!session?.user?.email?.endsWith('@example.invalid'))
     throw new Error('Movie acceptance tests require temporary test accounts.');
@@ -29,16 +30,21 @@ async function api(path: string, body: unknown, guest = false) {
 async function signed(browser: Browser, guest = false) {
   const context = await browser.newContext();
   const session = guest ? state.guest_session : state.session;
+  const name = `sb-${new URL(backend).hostname.split('.')[0]}-auth-token`;
+  const value = 'base64-' + Buffer.from(JSON.stringify(session)).toString('base64url');
+  const chunks = Array.from({ length: Math.ceil(value.length / 3180) }, (_, index) =>
+    value.slice(index * 3180, (index + 1) * 3180),
+  );
   await context.addCookies([
-    {
-      name: `sb-${new URL(backend).hostname.split('.')[0]}-auth-token`,
-      value: 'base64-' + Buffer.from(JSON.stringify(session)).toString('base64url'),
-      domain: 'localhost',
+    ...chunks.map((chunk, index) => ({
+      name: chunks.length === 1 ? name : `${name}.${index}`,
+      value: chunk,
+      domain: site.hostname,
       path: '/',
       httpOnly: false,
-      secure: false,
-      sameSite: 'Lax',
-    },
+      secure: site.protocol === 'https:',
+      sameSite: 'Lax' as const,
+    })),
   ]);
   return { context, page: await context.newPage() };
 }
@@ -308,17 +314,20 @@ test('E20: pause resumes the selected file without creating another upload and p
     await host.page.getByLabel('Movie title', { exact: true }).fill('Paused movie');
     await host.page.getByRole('button', { name: 'Upload movie', exact: true }).click();
     await expect
-      .poll(async () => {
-        const movie = (await movieRows()).find((m) => m.status === 'uploading');
-        if (!movie) return false;
-        const result = await api('/functions/v1/movie-upload-urls', {
-          movie_id: movie.id,
-          part_numbers: [1],
-        });
-        return result.data?.uploaded?.some(
-          (part: { part_number: number }) => part.part_number === 1,
-        );
-      })
+      .poll(
+        async () => {
+          const movie = (await movieRows()).find((m) => m.status === 'uploading');
+          if (!movie) return false;
+          const result = await api('/functions/v1/movie-upload-urls', {
+            movie_id: movie.id,
+            part_numbers: [1],
+          });
+          return result.data?.uploaded?.some(
+            (part: { part_number: number }) => part.part_number === 1,
+          );
+        },
+        { timeout: 30000 },
+      )
       .toBe(true);
     const id = (await movieRows()).find((m) => m.status === 'uploading')!.id;
     await host.page.getByRole('button', { name: 'Pause upload', exact: true }).click();

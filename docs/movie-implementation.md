@@ -38,11 +38,11 @@ The script reads the existing securely injected token under either supported env
 
 ## Remaining release gates
 
-The actual bucket did not return browser cross-origin resource sharing (CORS) headers during verification. Its narrow object token cannot change bucket configuration. The owner must apply `infrastructure/r2/cors.json` in Cloudflare and confirm the requested one-day incomplete-upload cleanup rule. Browser upload and interruption/resume acceptance remain unverified until that setting is applied; successful server uploads do not close this gate.
+The owner applied browser cross-origin resource sharing (CORS), and actual production browser upload and interruption/resume checks now pass. The narrow object token cannot inspect bucket administration, so confirmation of the requested one-day incomplete-upload lifecycle rule remains open. Application cleanup jobs and recent worker HTTP responses were checked successfully.
 
-Vercel must track `main` as its production branch. A successful preview does not establish that the live domain serves this implementation.
+The repository now defaults to `main`, and a fresh push produced a verified Production deployment. The live domain serves the movie library and Android page. The previous deployment is retained for rollback.
 
-The Android package still needs a permanent signing key, repository signing secrets, the matching public certificate association and a signed release. No downloadable application is advertised until a release asset exists. Real Android and iPhone checks remain outstanding, including Google sign in, microphone/camera permissions, verified links retaining private fragments and phone-specific codec support.
+The Android package has a permanent signing key and a verified encrypted backup in project Vault. Package signature, name and alignment checks passed. The matching public certificate is included in the website association. Release publication requires that association to be verified on production. No download is advertised until the release asset exists. Automated future releases still need repository signing secrets, which the integration cannot configure. Real Android and iPhone checks remain outstanding, including Google sign in, microphone/camera permissions, verified links retaining private fragments and phone-specific codec support.
 
 Android's official [developer verification guidance](https://developer.android.com/developer-verification) describes limited distribution to up to twenty devices without government identification or a registration fee. Other distribution paths and regional enforcement still need checking against the owner's actual audience before wider release.
 
@@ -69,3 +69,9 @@ The subsequent review fixed same-tab pause and resume, duplicate storage and roo
 All eight movie browser checks passed using local compatible storage. They cover browser upload into a private room, invitation copy and keyboard dismissal, deletion during playback, upload permission refusal, reopening an interrupted multipart upload, same-tab pause and resume without another reservation, invalid-file recovery, long titles at phone and desktop widths, and synchronized play, pause and seek. Screenshots were inspected at phone and desktop sizes. The three added download selection checks passed alongside the existing unit suites, for 439 checks total.
 
 The timed-comment check now waits for the guest to receive each seek before pinning or playing, rather than relying on fixed delays. Its focused run passed. Voice diagnostics established that signaling succeeds but the managed browser's network policy prevents the direct media used by the local test; that policy was preserved. Final regression and deployment results are tracked in `docs/flow-review-progress.md`.
+
+## Production acceptance
+
+All eight movie browser checks have now passed against the real production website and R2. The initial pass had seven successes and one test timeout while waiting only five seconds for a large part to arrive. That test's network allowance was corrected to match the other multipart case, and only that case was rerun successfully. No application behavior was changed to obtain the result.
+
+The test authentication helper now uses the configured site origin, secure HTTPS cookies and session chunking so production tests do not depend on localhost. Temporary accounts and their movies were removed after testing. Actual phone behavior and installation remain separate acceptance gates.

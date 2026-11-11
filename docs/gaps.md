@@ -320,11 +320,11 @@ Next action: The lead traces `passedComments` against the host's position sample
 
 ## G44: Movie storage account and deployment access
 
-The private R2 bucket and its scoped credentials are configured, and Supabase deployment access works. Real multipart uploads, signed part-length enforcement and partial reads passed. Browser cross-origin resource sharing (CORS) headers are still absent, and the bucket token cannot edit configuration. The owner must apply `infrastructure/r2/cors.json` and confirm the requested one-day incomplete-upload cleanup rule. Vercel administration and repository Actions secrets remain unavailable through the integration.
+The private R2 bucket and its scoped credentials are configured, and Supabase deployment access works. The owner applied browser cross-origin resource sharing (CORS). Production preflight, readable part identifiers, actual browser uploads, both resume paths, completion and partial reads now pass. Confirmation of the requested one-day bucket lifecycle rule remains open. Application housekeeping and cleanup jobs are active, their latest runs succeeded and recent worker HTTP responses succeeded. Repository Actions secrets remain unavailable through the integration.
 
 ## G45: Android distribution and signing
 
-The chosen package is `app.synvello.android`, named Synvello, distributed as an Android application package (APK) downloaded from the website. Signing credentials and current developer distribution requirements remain unverified. No signed application or Android release exists yet.
+The chosen package is `app.synvello.android`, named Synvello, distributed as an Android application package (APK) downloaded from the website. The owner confirmed there is no existing signing key. A new permanent identity was created, backed up in encrypted project Vault and checked by reading the backup back. The APK signature, package name, label and alignment passed verification. Publication requires the live website association to match the actual signed APK. Automated future builds still need the owner to configure Actions secrets from the preserved identity; this does not prevent the initial locally signed release.
 
 ## G46: Android device proof
 
@@ -332,11 +332,11 @@ Google sign in, microphone, camera and private room links must be tested on a re
 
 ## G47: Real R2 range reads and upload sizes
 
-The deployed proof completed a two hundred million byte upload against real R2, rejected an incorrect part length, and returned correct partial reads from the middle and end. Actual two-browser movie playback also passed play, pause, seek and the specified drift threshold. Browser upload and readable upload identifiers remain gated on G44.
+The deployed proof completed a two hundred million byte upload against real R2, rejected an incorrect part length, and returned correct partial reads from the middle and end. Actual production browser upload, readable identifiers, multipart recovery and two-browser playback now pass. Real-phone codec compatibility remains part of G46.
 
 ## G48: Signing in deployed functions
 
-The signing client and production movie functions are deployed with gateway authentication enabled. Live API checks passed upload, completion retry, quota refusal and authorized playback. Browser upload remains gated on G44.
+The signing client and production movie functions are deployed with gateway authentication enabled. Live API and browser checks passed upload, completion retry, permission refusal, multipart recovery and authorized playback.
 
 ## G49: Android room link fragments
 
@@ -356,19 +356,19 @@ The upload-rights notice and deletion behavior are implemented. Upload permissio
 
 ## G53: Production branch routing
 
-The live site is `https://synvello.vercel.app`. The repository previously used `claude/clever-wozniak-27gkxq` as its default branch and had no `main`. The owner requests `main` for production. Creating that branch does not establish Vercel's configured production branch; deployment status and the exact production commit must be checked after pushing.
+The live site is `https://synvello.vercel.app`. The repository now defaults to `main`. A fresh push after the owner's configuration change produced a successful Production deployment, and the live Android page responds. Both source commit and environment were verified through deployment metadata. Retain the preceding deployment for rollback.
 
 ## Movie implementation status
 
-G44: the R2 bucket and credential names exist, and the management API is usable. Browser CORS is still missing; applying the checked-in policy is required before browser upload acceptance. The narrow object token correctly refused attempts to change bucket configuration.
+G44: production browser access is verified. The owner still needs to confirm the requested bucket lifecycle rule.
 
-G45: the Android project generates and its unsigned release compiles. Permanent signing, repository secrets and a signed downloadable release remain open.
+G45: the Android package is signed and its encrypted signing backup is verified. Release publication is gated on website association verification. Automated updates still need repository signing secrets.
 
 G46 and G49: real-phone sign in, media permissions and verified private room links remain open.
 
-G47 and G48: the deployed signing and provider proof passed multipart upload, exact part length rejection and partial reads. Browser upload remains separately gated on G44.
+G47 and G48: the deployed signing and provider proof passed multipart upload, exact part length rejection and partial reads. All eight movie acceptance checks also passed against production.
 
-G50 remains accepted. G51 still needs iPhone verification. The upload-rights notice for G52 is implemented; the broader placeholder terms review remains open under G16. G53 still requires production branch routing and verification of the live commit.
+G50 remains accepted. G51 still needs iPhone verification. The upload-rights notice for G52 is implemented; the broader placeholder terms review remains open under G16. G53 is verified through a successful main-branch Production deployment.
 
 See `docs/movie-implementation.md` for the executed checks and remaining gates. All local database suites and concurrency checks passed. The legacy browser run reproduced G43, so a full browser pass is not claimed.
 

@@ -15,7 +15,6 @@ jobs:
   release:
     runs-on: ubuntu-latest
     env:
-      ANDROID_VERSION_CODE: ${{ github.run_number }}
       ANDROID_VERSION_NAME: ${{ inputs.tag }}
     steps:
       - uses: actions/checkout@v4
@@ -27,6 +26,9 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: android-actions/setup-android@v3
+      - name: Set the update build number
+        shell: bash
+        run: printf 'ANDROID_VERSION_CODE=%s\n' "$((GITHUB_RUN_NUMBER + 1))" >> "$GITHUB_ENV"
       - name: Validate signing configuration
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}

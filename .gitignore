@@ -27,5 +27,6 @@ apps/web/next-env.d.ts
 __pycache__/
 *.keystore
 *.jks
+*.p12
 *.apk
 *.aab

@@ -4,7 +4,7 @@ This Trusted Web Activity opens the live website in Chrome. It uses the package 
 
 Install the repository's pinned dependencies, then run `pnpm --filter @watchparty/android generate`. Bubblewrap generates the native project under `generated/`, which is ignored by Git. Generation uses Node's built-in fetch with inherited proxy settings and certificate trust; it never disables certificate verification. Install the Android platform and build tools required by the generated project, then run `./gradlew --no-daemon --max-workers=2 :app:assembleRelease` inside `generated/`.
 
-The generated release package is unsigned. Do not distribute it as an installable app. The manually started Android release workflow aligns, signs and verifies the package before attaching `synvello.apk` to a GitHub Release. The website's `/android` page shows a download only when that release asset exists.
+The generated release package is unsigned. Do not distribute it as an installable app. The manually started Android release workflow aligns, signs and verifies the package before attaching `synvello.apk` to a GitHub Release. The website's `/android` page supports official repository releases and the verified artifact in the website's public download storage.
 
 Configure these repository Actions secrets securely:
 
@@ -39,3 +39,11 @@ The current GitHub integration cannot write Actions secrets. The initial release
 | `android_signing_alias` | `ANDROID_KEY_ALIAS` |
 
 `android_signing_certificate_sha256` records the public fingerprint. Keep an additional independent secure backup under the account owner's control. Decode the keystore value only in a trusted environment, and keep passwords out of chat, Git, terminal output and screenshots. No signing material belongs in the public movie bucket or browser configuration.
+
+## Direct website download
+
+The first signed package is stored in the separate public `android-releases` bucket. Its immutable path contains the package checksum. `apps/web/lib/android-release.json` records the published URL, size, checksum, package name and public certificate. The website confirms the artifact's response, type and size before offering the link, and can use a newer official repository release when available. A failed repository feed does not hide the verified website download.
+
+The bucket limits files to ten million bytes and accepts Android packages, plain text and JSON. Only administrator credentials publish artifacts. Anonymous and ordinary signed-in upload attempts were tested and refused. Both the APK and its checksum file were downloaded back and compared before wiring the website link. Never overwrite an existing checksum path; publish a new immutable path and update the public manifest for a release hosted there.
+
+The initial GitHub asset upload was refused by the integration credential, even though repository writes and draft creation worked. The empty draft was not published. This is a hosting limitation, not a requirement to use Google Play. Future automated repository releases still require the signing secrets listed above.

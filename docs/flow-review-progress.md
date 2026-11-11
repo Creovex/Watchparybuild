@@ -40,6 +40,8 @@ The owner changed the repository default to `main`. A fresh push also produced a
 
 Voice diagnostics exchanged offer and answer successfully on both clients. Neither browser produced a media connection candidate. The managed Chromium policy sets `WebRtcIPHandling` to `disable_non_proxied_udp`, while the local test uses direct media with STUN, the server used to discover connection addresses. The policy was not changed. Voice acceptance needs an appropriate permitted relay configuration or a real device on a supported network. A successful signaling exchange alone is not a voice pass.
 
+A separate production credential check succeeded and returned direct STUN servers. Relay credentials are not configured, so strict-network voice remains limited. The temporary voice-check room and account were removed. Actual audio between phones remains unverified.
+
 ## Final verification
 
 All eight movie browser checks passed and screenshots were inspected. All fourteen remaining legacy checks passed in one final run, including timed comments, private joins, chat, reactions, room caps, moderation, account deletion, play, pause, seek and buffering coordination. The voice check remains explicitly blocked by the diagnosed managed policy and was excluded from this final run rather than retried under unchanged conditions.
@@ -54,7 +56,7 @@ Production test cookies now follow the configured HTTPS site origin and support 
 
 The website is live from `main`, and actual browser uploads work. The previous deployment is retained for rollback. The signed Android package has been verified for signature, alignment, package identifier and label. Its permanent identity is backed up in encrypted project Vault and the backup has been read back successfully. No signing key or password is committed or sent in chat.
 
-The initial APK is published only after its actual certificate matches the production website association. The website offers the download only after the official repository release contains the asset. Google Play publication is not required. Device acceptance remains open afterward. The owner should keep an additional independent signing backup and configure repository secrets before using automated future releases; see `apps/android/README.md`.
+The initial APK was published to separate public download storage after its actual certificate matched the production website association. Its signature and downloaded bytes were verified, and the public manifest records its immutable URL and checksum. The website checks availability before offering the download. Google Play publication is not required. Device acceptance remains open afterward. The owner should keep an additional independent signing backup and configure repository secrets before using automated future releases; see `apps/android/README.md`.
 
 ## Deployment follow-up
 
@@ -62,4 +64,4 @@ The fresh `main` push `16829e0` produced a successful Production deployment and 
 
 The Android certificate update adds the real public release fingerprint to the website association and leaves the private identity outside Git. The three new association checks passed with the current web suite, for 63 web unit checks. Workspace type checks passed. The Android workflow build-number check confirms that automated updates follow the initial release rather than reusing its build number.
 
-Verify the matching certificate deployment, publish the verified binary, then inspect the actual website download and downloaded APK. Do not repeat the unchanged movie suites after this certificate-only website change. Phone installation, sign in, media permissions, private links and iPhone fullscreen remain separate manual gates.
+The production certificate matches the signed APK. The integration refused the GitHub binary upload, so the initial package and checksum are hosted in a dedicated public application-download bucket. Anonymous and ordinary-account writes were refused. The website uses this verified artifact if the repository feed is unavailable. Inspect the actual website button and download after deployment; do not repeat unchanged movie suites. Phone installation, sign in, media permissions, private links and iPhone fullscreen remain separate manual gates.

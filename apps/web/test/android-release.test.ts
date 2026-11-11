@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { androidDownload } from '../lib/android-release';
+import { describe, expect, it, vi } from 'vitest';
+import { androidDownload, resolveAndroidDownload } from '../lib/android-release';
+import websiteRelease from '../lib/android-release.json';
 const url =
   'https://github.com/Creovex/Watchparybuild/releases/download/android-release/synvello.apk';
 const app = {
@@ -31,5 +32,36 @@ describe('Android downloads', () => {
   it('handles absent releases without offering a broken download', () => {
     expect(androidDownload([])).toBe(null);
     expect(androidDownload({ message: 'Not found' })).toBe(null);
+  });
+  it('keeps the verified website download available when GitHub is unavailable', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).startsWith('https://api.github.com/')) throw new Error('Unavailable');
+      return new Response(null, {
+        headers: {
+          'content-length': String(websiteRelease.size_bytes),
+          'content-type': 'application/vnd.android.package-archive',
+        },
+      });
+    });
+    expect(await resolveAndroidDownload(fetcher)).toEqual({
+      url: websiteRelease.url,
+      failed: false,
+    });
+  });
+  it('does not offer a missing or incorrect website artifact', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) =>
+      String(input).startsWith('https://api.github.com/')
+        ? Response.json([])
+        : new Response(null, { headers: { 'content-length': '1', 'content-type': 'text/html' } }),
+    );
+    expect(await resolveAndroidDownload(fetcher)).toEqual({ url: null, failed: true });
+  });
+  it('uses a newer official repository release when one is available', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) =>
+      String(input).startsWith('https://api.github.com/')
+        ? Response.json([app])
+        : new Response(null, { status: 404 }),
+    );
+    expect(await resolveAndroidDownload(fetcher)).toEqual({ url, failed: false });
   });
 });

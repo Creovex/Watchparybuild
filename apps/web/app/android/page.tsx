@@ -1,25 +1,10 @@
 import Link from 'next/link';
 import { SiteHeader } from '@/components/SiteHeader';
 import { SiteFooter } from '@/components/SiteFooter';
-import { androidDownload } from '@/lib/android-release';
+import { resolveAndroidDownload } from '@/lib/android-release';
 export const metadata = { title: 'Synvello for Android' };
-async function download(): Promise<{ url: string | null; failed: boolean }> {
-  try {
-    const response = await fetch(
-      'https://api.github.com/repos/Creovex/Watchparybuild/releases?per_page=20',
-      {
-        next: { revalidate: 300 },
-        headers: { Accept: 'application/vnd.github+json' },
-      },
-    );
-    if (!response.ok) return { url: null, failed: response.status !== 404 };
-    return { url: androidDownload(await response.json()), failed: false };
-  } catch {
-    return { url: null, failed: true };
-  }
-}
 export default async function AndroidPage() {
-  const { url, failed } = await download();
+  const { url, failed } = await resolveAndroidDownload();
   return (
     <div className="flex min-h-dvh flex-col">
       <SiteHeader />

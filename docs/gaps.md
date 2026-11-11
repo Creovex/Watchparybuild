@@ -185,6 +185,8 @@ What is unknown: The Google OAuth client, LiveKit Cloud project and Cloudflare T
 Effect on the build: Google sign in, server voice and TURN relay have not run on a hosted service. Until a Cloudflare key is set, the hosted `turn-credentials` function can run with `TURN_TEST_MODE=1`, which gives STUN only, so mesh voice connects only where a direct path exists.
 Next action: James answers Q2 and Q3.
 
+The production voice credential endpoint was subsequently checked with an authorized temporary room and returned STUN servers successfully. TURN relay and LiveKit credentials are not configured. Direct mesh voice can be attempted on a supported network; reliable traversal of strict networks and server voice still need provider setup and device checks. The temporary test account and room were removed.
+
 ## G22: Fixed preview domain
 Status: OPEN
 Found in: Phase 0

@@ -17,7 +17,7 @@ Record each finding once. After a fix, run its focused check and include it in o
 | Delete and retry | Storage leases and deletion checks pass | Added pending states and prevented overlapping actions; deletion browser check passed |
 | Narrow screens | No complete visual review recorded | Fixed room-card and file-picker overflow; long-title checks passed at widths of 320, 390 and 1280 pixels; screenshots inspected |
 | Legacy playback and voice | Timed comments and mesh voice fail browser acceptance | Timed-comment check now waits for actual guest seeks; all fourteen remaining legacy checks passed; voice is blocked by managed media policy |
-| Production release | Implementation pushed; Vercel preview succeeded | Default branch still unchanged, no signed Android asset; production branch administration remains required |
+| Production release | Implementation pushed; Vercel preview succeeded | Repository default branch is now confirmed as main; a fresh deployment must verify Vercel production tracking; no signed Android asset exists |
 
 ## Existing checks retained
 
@@ -36,7 +36,7 @@ No environment configuration will be republished as part of this review.
 
 The live R2 check returned a forbidden browser preflight for the production origin. A server upload succeeded, but its response had no browser origin or exposed part identifier. Completion, repeated completion and partial playback reads passed. The temporary hosted account and object were deleted afterward. No further bucket-setting retry is planned until the owner supplies new configuration evidence.
 
-The repository still defaults to the old working branch. Its integration has already refused default-branch administration, so repeating that write would not help. No published release currently contains `synvello.apk`.
+The previous review found that the repository still defaulted to the old working branch. The owner has since changed its default to `main`, confirmed through the repository API. No published release currently contains `synvello.apk`.
 
 Voice diagnostics exchanged offer and answer successfully on both clients. Neither browser produced a media connection candidate. The managed Chromium policy sets `WebRtcIPHandling` to `disable_non_proxied_udp`, while the local test uses direct media with STUN, the server used to discover connection addresses. The policy was not changed. Voice acceptance needs an appropriate permitted relay configuration or a real device on a supported network. A successful signaling exchange alone is not a voice pass.
 
@@ -51,3 +51,11 @@ All 439 unit checks, workspace type checks, production builds and extension outp
 The fixes target `main`. Production promotion remains blocked by branch administration and missing bucket browser configuration. The existing live deployment is retained. The Android download page is implemented and discoverable, but it cannot offer an installable app until permanent signing, secure key backup, website association and a signed release are completed. Device acceptance is still required afterward.
 
 Next external action: apply `infrastructure/r2/cors.json` in the bucket settings, confirm incomplete-upload cleanup, and change the repository default and Vercel production branches to `main`. Supply signing secrets through the provider settings, never chat. Retry production upload or media checks only after the relevant setting changes.
+
+## Deployment follow-up
+
+The repository default branch is now confirmed as `main`. Its latest tested application commit passed the Vercel preview build. The live production deployment still serves the earlier application and returns not found for the Android page and website association file.
+
+This progress update supplies a fresh push to `main` after the owner reports changing branch settings. Inspect the resulting Vercel environment and commit before treating it as a production release. Retain the preceding production deployment for rollback. Application code and backend dependencies are unchanged, so the completed implementation checks remain valid.
+
+After the deployment settles, check the live pages and upload flow once. If Vercel still creates only a preview, record that evidence and request the specific production setting rather than repeatedly pushing commits. Signing, device verification and any remaining R2 browser configuration are separate gates.

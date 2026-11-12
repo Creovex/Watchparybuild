@@ -33,6 +33,7 @@ export default function TermsPage() {
             by the people who run the app.
           </p>
           <p>Do not use rooms to harass anyone, to share sexual content without consent, or to spam.</p>
+          <p><a className="underline" href="/licenses/mkv.txt">Media library licenses and source</a></p>
         </div>
       </article>
     </PageShell>

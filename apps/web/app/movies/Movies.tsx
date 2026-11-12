@@ -7,6 +7,7 @@ import { Sheet } from '@watchparty/ui';
 import { getBrowserClient } from '@/lib/supabase/client';
 import { movieCall, type Movie } from '@/lib/movie-api';
 import { checkMovie, type MovieDetails } from '@/lib/movie-check';
+import type { PreparedMovie } from '@/lib/movie-prepare';
 import { uploadMovie, uploadRecord } from '@/lib/movie-upload';
 import { useWakeLock } from '@/lib/use-wake-lock';
 import { errorSentence } from '@/lib/errors';
@@ -33,13 +34,16 @@ export function Movies({ owner }: { owner: string }) {
   const [title, setTitle] = useState('');
   const [busy, setBusy] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [preparation, setPreparation] = useState('');
   const [progress, setProgress] = useState({ bytes: 0, total: 0, start: 0 });
   const [resume, setResume] = useState<string | undefined>();
   const [preview, setPreview] = useState<{ url: string; title: string } | null>(null);
   const [posters, setPosters] = useState<Record<string, string>>({});
   const abort = useRef<AbortController | null>(null);
+  const prepareAbort = useRef<AbortController | null>(null);
+  const prepared = useRef<PreparedMovie | null>(null);
   const selection = useRef(0);
-  useWakeLock(busy);
+  useWakeLock(busy || checking);
   const refresh = useCallback(async () => {
     try {
       const db = getBrowserClient();
@@ -81,24 +85,37 @@ export function Movies({ owner }: { owner: string }) {
   }, [refresh]);
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {
-      if (busy) e.preventDefault();
+      if (busy || checking) e.preventDefault();
     };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [busy]);
-  useEffect(() => () => abort.current?.abort(), []);
+  }, [busy, checking]);
+  useEffect(() => () => { abort.current?.abort(); prepareAbort.current?.abort(); }, []);
   async function choose(chosen: File | null, resumeId?: string) {
+    prepareAbort.current?.abort();
+    const controller = new AbortController();
+    prepareAbort.current = controller;
     const epoch = ++selection.current;
-    setFile(chosen);
+    setFile(null);
     setDetails(null);
     setResume(resumeId);
     setPaused(false);
     setError('');
+    setChecking(false);
     if (!chosen) return;
     setChecking(true);
+    setPreparation('Checking the video and preparing its poster…');
     try {
-      const result = await checkMovie(chosen);
+      const { prepareMovie } = await import('@/lib/movie-prepare');
+      const ready = await prepareMovie(chosen, owner, controller.signal, (message) => {
+        if (selection.current === epoch) setPreparation(message);
+      });
+      controller.signal.throwIfAborted();
+      prepared.current = ready;
+      setPreparation('Checking the video and preparing its poster…');
+      const result = await checkMovie(ready.file);
       if (selection.current !== epoch) return;
+      setFile(ready.file);
       setDetails(result);
       setTitle(
         (resumeId ? movies.find((m) => m.id === resumeId)?.title : undefined) ??
@@ -108,7 +125,7 @@ export function Movies({ owner }: { owner: string }) {
             .slice(0, 120),
       );
     } catch (e) {
-      if (selection.current === epoch)
+      if (selection.current === epoch && !controller.signal.aborted)
         setError(e instanceof Error ? e.message : 'This file could not be read.');
     } finally {
       if (selection.current === epoch) setChecking(false);
@@ -140,6 +157,8 @@ export function Movies({ owner }: { owner: string }) {
         signal: controller.signal,
         progress: (bytes, total) => setProgress((p) => ({ ...p, bytes, total })),
       });
+      await prepared.current?.release();
+      prepared.current = null;
       setFile(null);
       setDetails(null);
       setResume(undefined);
@@ -198,6 +217,8 @@ export function Movies({ owner }: { owner: string }) {
         /* Server cleanup already succeeded. */
       }
       if (resume === movie.id) {
+        await prepared.current?.release();
+        prepared.current = null;
         setResume(undefined);
         setFile(null);
         setDetails(null);
@@ -284,8 +305,10 @@ export function Movies({ owner }: { owner: string }) {
         <section className="flex flex-col gap-4 rounded-xl bg-surface-1 p-5">
           <h2 className="text-xl font-bold">{resume ? 'Resume your upload' : 'Upload a movie'}</h2>
           <p className="text-sm text-muted">
-            MP4 with H.264 video and AAC sound, or WebM with VP9 or AV1 video and Opus sound. Keep
-            this page open. A 2 GB file takes about 27 minutes on a 10 Mbps upload connection.
+            MP4, WebM or MKV. MKV files are prepared on your device before uploading; compatible
+            video is copied without quality loss. Other codecs need device support for conversion.
+            The main audio track is included; extra audio tracks and subtitles are not imported.
+            Keep this page open. A 2 GB file takes about 27 minutes on a 10 Mbps upload connection.
           </p>
           <p className="text-sm text-muted">
             Maximum file size: 5 GiB. Upload only movies you have the right to share.
@@ -300,13 +323,22 @@ export function Movies({ owner }: { owner: string }) {
             Choose a movie
             <input
               type="file"
-              accept=".mp4,.m4v,.webm"
+              accept=".mp4,.m4v,.webm,.mkv,video/x-matroska"
               className="block w-full min-w-0 max-w-full py-3 text-sm"
               disabled={busy || checking || Boolean(resume) || Boolean(pending)}
               onChange={(e) => void choose(e.target.files?.[0] ?? null)}
             />
           </label>
-          {checking ? <p role="status">Checking the video and preparing its poster…</p> : null}
+          {checking ? <div>
+            <p role="status">{preparation}</p>
+            <button className="min-h-11 underline" onClick={() => {
+              prepareAbort.current?.abort();
+              selection.current++;
+              setChecking(false);
+              setFile(null);
+              setDetails(null);
+            }}>Cancel preparation</button>
+          </div> : null}
           {details ? (
             <>
               <label>
@@ -431,7 +463,7 @@ export function Movies({ owner }: { owner: string }) {
                 Choose the same file to resume
                 <input
                   type="file"
-                  accept=".mp4,.m4v,.webm"
+                  accept=".mp4,.m4v,.webm,.mkv,video/x-matroska"
                   className="block w-full min-w-0 max-w-full py-2 text-sm"
                   disabled={busy || checking || Boolean(pending)}
                   onChange={(e) => void choose(e.target.files?.[0] ?? null, movie.id)}

@@ -1,6 +1,7 @@
 import { test, expect, type Browser, type Page } from '@playwright/test';
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
 const file = process.env.MOVIE_E2E_STATE_FILE;
 if (!file) throw new Error('Set MOVIE_E2E_STATE_FILE to the private temporary test-session file.');
 const state = JSON.parse(readFileSync(file, 'utf8'));
@@ -91,6 +92,34 @@ test.beforeEach(async () => {
 });
 test.afterEach(async () => {
   await clean();
+});
+test('E24: prepare an MKV with Dolby sound, upload and play it', async ({ browser }) => {
+  const source = join(__dirname, '.auth', 'upload-ac3.mkv');
+  mkdirSync(join(__dirname, '.auth'), { recursive: true });
+  execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=160x90:rate=24:duration=20',
+    '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000:duration=20', '-c:v', 'libx264', '-c:a', 'ac3', '-y', source]);
+  const host = await signed(browser);
+  try {
+    await host.page.goto('/movies');
+    await host.page.getByLabel('Choose a movie', { exact: true }).setInputFiles(source);
+    await expect(host.page.getByLabel('Movie title', { exact: true })).toBeVisible({ timeout: 60000 });
+    await host.page.getByLabel('Movie title', { exact: true }).fill('MKV upload acceptance');
+    await host.page.getByRole('button', { name: 'Upload movie', exact: true }).click();
+    await expect(host.page.getByRole('button', { name: 'Watch together', exact: true })).toBeVisible({ timeout: 60000 });
+    await host.page.getByRole('button', { name: 'Watch together', exact: true }).click();
+    await expect(host.page.getByRole('dialog', { name: 'Invite friends' })).toBeVisible({ timeout: 45000 });
+    await host.page.keyboard.press('Escape');
+    const player = host.page.getByTestId('movie-video');
+    await expect.poll(() => player.evaluate((video: HTMLVideoElement) => video.readyState)).toBeGreaterThanOrEqual(2);
+    await player.evaluate((video: HTMLVideoElement) => video.play());
+    await expect.poll(() => player.evaluate((video: HTMLVideoElement) => video.currentTime)).toBeGreaterThan(0.2);
+    await player.evaluate((video: HTMLVideoElement) => { video.currentTime = 10; });
+    await expect.poll(() => player.evaluate((video: HTMLVideoElement) => video.currentTime)).toBeGreaterThanOrEqual(10);
+  } finally {
+    await host.context.close();
+    const { unlinkSync } = await import('node:fs');
+    unlinkSync(source);
+  }
 });
 test('E16: upload a movie through the browser and watch with another member', async ({
   browser,

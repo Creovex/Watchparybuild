@@ -11,11 +11,16 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@mediabunny/aac-encoder": "1.65.2",
+    "@mediabunny/ac3": "1.65.2",
+    "@mediabunny/dts": "1.65.2",
+    "@mediabunny/truehd": "1.65.2",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.3",
     "@watchparty/sync-core": "workspace:*",
     "@watchparty/ui": "workspace:*",
     "@watchparty/voice": "workspace:*",
+    "mediabunny": "1.65.2",
     "mp4box": "2.5.0",
     "next": "^16.4.6",
     "qrcode": "1.5.4",

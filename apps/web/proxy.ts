@@ -36,6 +36,8 @@ function contentSecurityPolicy(nonce: string): string {
       "'self'",
       `'nonce-${nonce}'`,
       "'strict-dynamic'",
+      // Local MKV audio conversion compiles bundled codec WASM; JavaScript eval stays disabled.
+      "'wasm-unsafe-eval'",
       ...youtube,
       ...(dev ? ["'unsafe-eval'"] : []),
     ],

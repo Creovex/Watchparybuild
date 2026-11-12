@@ -443,3 +443,30 @@ The codec parser uses `mp4box` under the BSD licence and checks WebM track eleme
 The movie source uses the existing synchronization engine through an HTML video adapter. Programmatic controls suppress corresponding user-action events, and browser autoplay refusals retain the existing tap-to-play flow. Invitation posters are signed only after checking the private room key or current membership. The service cleanup worker uses a dedicated secret in addition to gateway authentication; its scheduler credentials are encrypted in Vault.
 
 The Android source is generated reproducibly from the committed manifest rather than committing generated native output. Distribution is gated on signing, website certificate association and device checks. Implementation status and verification evidence are recorded in `docs/movie-implementation.md`.
+
+
+## MKV preparation (2026-11-12)
+
+MKV selections are converted locally into the existing H.264/AAC MP4 upload format.
+Mediabunny 1.65.2 handles Matroska input, packet copying and browser video conversion.
+Its pinned AC-3, DTS and TrueHD decoder extensions handle common movie audio, and its
+AAC encoder avoids dependence on a platform AAC encoder. Compatible video is copied;
+other video requires WebCodecs decoding and H.264 encoding on the selected device.
+There is no blanket HEVC support claim. Primary video/audio only are imported.
+
+The output streams into origin-private device storage rather than retaining the whole
+movie in a JavaScript buffer. A source fingerprint and completion manifest distinguish
+finished output from interrupted preparation. The retained copy provides identical bytes
+for multipart recovery after reload; success removes it, and another MKV selection replaces
+it. Browser storage may be evicted; if that happens after encoding, cancelling and starting
+the upload again may be necessary. A browser lock serializes preparation for one uploader.
+Both the source and prepared output enforce the existing 5 GiB limit. Temporary device
+space is required in addition to shared upload storage; real multi-gigabyte device acceptance
+remains distinct from the small generated browser fixtures.
+
+Mediabunny and its extension JavaScript are MPL-2.0. The audio extensions include
+LGPL-2.1-or-later FFmpeg WASM with no GPL/nonfree components. Versions, upstream source,
+build instructions and full licenses are available under `/licenses/` and linked from Terms.
+CSP permits WASM compilation with `wasm-unsafe-eval`; production JavaScript eval remains
+restricted. The test harness builds the real preparation modules and runs under a restrictive
+CSP. No transcoding server, database migration or storage-policy change is required.

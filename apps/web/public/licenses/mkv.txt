@@ -1,0 +1,27 @@
+MKV preparation uses Mediabunny and the @mediabunny/ac3, aac-encoder,
+dts and truehd extensions, version 1.65.2.
+Copyright (c) 2026-present, Vanilagy and contributors.
+These libraries are distributed under the Mozilla Public License 2.0:
+/licenses/mediabunny-MPL-2.0.txt
+Source and build instructions (including the codec bridges and AC-3 patch):
+https://github.com/Vanilagy/mediabunny/tree/v1.65.2
+Exact published source packages, including licenses and build instructions:
+https://registry.npmjs.org/mediabunny/-/mediabunny-1.65.2.tgz
+https://registry.npmjs.org/@mediabunny/ac3/-/ac3-1.65.2.tgz
+https://registry.npmjs.org/@mediabunny/aac-encoder/-/aac-encoder-1.65.2.tgz
+https://registry.npmjs.org/@mediabunny/dts/-/dts-1.65.2.tgz
+https://registry.npmjs.org/@mediabunny/truehd/-/truehd-1.65.2.tgz
+
+The codec extensions include WebAssembly builds of FFmpeg libavcodec/libavutil,
+licensed under the GNU Lesser General Public License 2.1 or later:
+/licenses/ffmpeg-LGPL-2.1.txt
+FFmpeg source at the exact revision used by these extensions:
+https://github.com/FFmpeg/FFmpeg/tree/60a2818f76dcd1fee3155b1791304af104a0fc1b
+FFmpeg copyright notices: https://ffmpeg.org/legal.html
+No GPL or nonfree FFmpeg components are enabled in these builds.
+
+The libraries are used unmodified. You may modify and rebuild them using the
+instructions in each package's README, substitute the rebuilt package in this
+application's source and rebuild the web app. Reverse engineering to debug
+modifications to the LGPL components is permitted.
+Application source: https://github.com/Creovex/Watchparybuild

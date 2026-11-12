@@ -431,3 +431,59 @@ describe('lifecycle', () => {
     expect(seen).toHaveLength(1);
   });
 });
+
+describe('native movie timeline synchronization', () => {
+  it('applies a small host seek directly instead of spending seconds nudging', async () => {
+    setup({ tightSync: true, seekLatencySec: 0 });
+    adapter.paused = false;
+    adapter.position = 10;
+    engine.applyState(state({ position_sec: 10.6 }));
+    engine.tick();
+    await flush();
+    expect(adapter.position).toBeCloseTo(10.6, 3);
+    expect(adapter.count('seek')).toBe(1);
+  });
+  it('applies small paused seeks to the same position', async () => {
+    setup({ tightSync: true, seekLatencySec: 0 });
+    adapter.position = 10;
+    engine.applyState(state({ status: 'paused', position_sec: 10.1 }));
+    engine.tick();
+    await flush();
+    expect(adapter.position).toBeCloseTo(10.1, 3);
+  });
+  it('corrects a one-second gap directly rather than nudging it for twenty seconds', async () => {
+    setup({ tightSync: true, seekLatencySec: 0 });
+    adapter.paused = false;
+    engine.applyState(state());
+    engine.tick();
+    adapter.position = 1;
+    await run(1000);
+    expect(Math.abs(adapter.position - 1)).toBeLessThan(0.1);
+  });
+  it('restores an unauthorized local seek even while it is buffering', async () => {
+    setup({ tightSync: true, seekLatencySec: 0 });
+    engine.applyState(state({ status: 'paused', position_sec: 5 }));
+    adapter.position = 15;
+    adapter.buffering = true;
+    engine.resync();
+    await flush();
+    expect(adapter.position).toBe(5);
+  });
+});
+
+it('does not swallow small or rapid user seeks after the native adapter filtered its own events', async () => {
+  setup({ tightSync: true, filtersOwnActions: true, seekLatencySec: 0 });
+  engine.applyState(state({ status: 'paused', position_sec: 5 }));
+  engine.tick();
+  await flush();
+  adapter.emitAction({ kind: 'seek', position: 5.2 });
+  expect(actions).toEqual([{ kind: 'seek', position: 5.2 }]);
+  engine.applyState(state({ status: 'paused', position_sec: 5.2 }));
+  engine.tick();
+  await flush();
+  expect(adapter.position).toBeCloseTo(5.2, 3);
+  engine.applyState(state({ status: 'paused', position_sec: 5.4 }));
+  engine.tick();
+  await flush();
+  expect(adapter.position).toBeCloseTo(5.4, 3);
+});

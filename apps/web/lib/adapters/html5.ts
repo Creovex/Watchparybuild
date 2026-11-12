@@ -6,10 +6,13 @@ export class Html5VideoAdapter implements PlayerAdapter {
     fineRate: true,
     volume: !isIOS(),
     seek: true,
-    seekLatencySec: 0.3,
+    seekLatencySec: 0,
+    tightSync: true,
+    filtersOwnActions: true,
   };
   private video: HTMLVideoElement;
   private buffering = false;
+  private pendingSeek: number | null = null;
   private destroyed = false;
   private refreshing = false;
   private expires = 0;
@@ -30,13 +33,15 @@ export class Html5VideoAdapter implements PlayerAdapter {
     this.video.preload = 'auto';
     this.video.className = 'absolute inset-0 size-full bg-black';
     this.video.dataset.testid = 'movie-video';
-    this.video.setAttribute(
-      'controlsList',
-      `nodownload noremoteplayback${document.fullscreenEnabled && !isIOS() ? ' nofullscreen' : ''}`,
-    );
+    this.video.setAttribute('controlsList', 'nodownload noremoteplayback');
     container.replaceChildren(this.video);
-    for (const name of ['play', 'pause', 'seeked'])
+    for (const name of ['play', 'pause', 'seeking'])
       this.video.addEventListener(name, () => {
+        if (name === 'seeking') {
+          const target = this.pendingSeek;
+          this.pendingSeek = null;
+          if (target !== null && Math.abs(this.video.currentTime - target) < 0.01) return;
+        }
         const current = this.suppressed.get(name);
         if (current && current.until > Date.now() && current.count > 0) {
           current.count--;
@@ -45,14 +50,23 @@ export class Html5VideoAdapter implements PlayerAdapter {
         if (!this.refreshing)
           for (const cb of this.actions)
             cb({
-              kind: name === 'seeked' ? 'seek' : (name as 'play' | 'pause'),
+              kind: name === 'seeking' ? 'seek' : (name as 'play' | 'pause'),
               position: this.video.currentTime,
             });
       });
-    for (const name of ['waiting', 'stalled'])
-      this.video.addEventListener(name, () => this.setBuffering(true));
-    for (const name of ['playing', 'canplay'])
-      this.video.addEventListener(name, () => this.setBuffering(false));
+    this.video.addEventListener('waiting', () => {
+      this.setBuffering(this.video.readyState < 3 && !this.video.ended);
+    });
+    this.video.addEventListener('stalled', () => {
+      // A stalled download is not a stalled player: buffered video can keep playing.
+      if (this.video.readyState >= 3 || this.video.ended) this.setBuffering(false);
+      else if (!this.video.paused || this.video.seeking) this.setBuffering(true);
+    });
+    for (const name of ['playing', 'canplay', 'loadeddata', 'seeked', 'progress', 'pause'])
+      this.video.addEventListener(name, () => {
+        // Readiness can recover while a room-wide buffer pause keeps the video paused.
+        if (this.video.readyState >= 3 || this.video.ended) this.setBuffering(false);
+      });
     this.video.addEventListener('ended', () => this.ends.forEach((cb) => cb()));
     this.video.addEventListener('error', () => {
       void this.refresh().catch(() => this.setBuffering(true));
@@ -138,7 +152,7 @@ export class Html5VideoAdapter implements PlayerAdapter {
   async seek(sec: number) {
     const position = Math.max(0, Math.min(sec, this.getDuration() ?? sec));
     if (Math.abs(this.video.currentTime - position) > 0.001) {
-      this.suppress('seeked');
+      this.pendingSeek = position;
       this.video.currentTime = position;
     }
   }

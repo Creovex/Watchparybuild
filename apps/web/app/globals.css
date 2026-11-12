@@ -45,3 +45,28 @@
 @media (prefers-reduced-motion: reduce) {
   .movie-progress:indeterminate { animation: none; }
 }
+
+/* The same player fills the viewport in native fullscreen and the window fallback. */
+.movie-screen[data-expanded='true'] {
+  width: 100%;
+  height: 100dvh;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+.movie-screen[data-expanded='true'] > .movie-screen-content {
+  flex: 1;
+  min-height: 0;
+}
+.movie-screen[data-expanded='true'] > .movie-screen-content > :first-child {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.movie-screen[data-expanded='true'] [data-testid='player'] {
+  flex: 1;
+  aspect-ratio: auto;
+  max-width: none;
+  min-height: 0;
+}
+.movie-screen[data-expanded='true'] video {
+  object-fit: contain;
+}

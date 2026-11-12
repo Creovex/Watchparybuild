@@ -584,3 +584,111 @@ test('E25: upload progress advances before a multipart part finishes', async ({ 
     unlinkSync(source);
   }
 });
+
+async function syncPair(browser: Browser) {
+  const id = await seeded();
+  const created = await api('/rest/v1/rpc/create_room', { title: 'Shared timeline regression', source: 'upload', content_ref: id, visibility: 'private', control_mode: 'host' });
+  expect(created.ok).toBe(true);
+  const host = await signed(browser); const guest = await signed(browser, true);
+  const url = new URL(created.data.room_link);
+  await enter(host.page, url.pathname + url.hash);
+  await enter(guest.page, url.pathname + url.hash);
+  const videos = [host.page, guest.page].map(page => page.getByTestId('movie-video'));
+  for (const video of videos) await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.readyState)).toBeGreaterThanOrEqual(3);
+  const drift = async () => {
+    const times = await Promise.all(videos.map(video => video.evaluate((v: HTMLVideoElement) => v.currentTime)));
+    return Math.abs(times[0]! - times[1]!);
+  };
+  const close = async () => {
+    await api('/rest/v1/rpc/close_room', { room_id: created.data.room.id });
+    await host.context.close(); await guest.context.close();
+  };
+  return { host, guest, videos, drift, close, roomId: created.data.room.id };
+}
+
+test('Shared seeking: small, rapid and playing host drags move both players; guest drags cannot diverge', async ({ browser }) => {
+  const pair = await syncPair(browser);
+  const [host, guest] = pair.videos;
+  try {
+    for (const position of [5, 5.2, 5.4]) {
+      await host!.evaluate((video: HTMLVideoElement, target) => { video.currentTime = target; }, position);
+      await expect.poll(() => guest!.evaluate((video: HTMLVideoElement) => video.currentTime)).toBeCloseTo(position, 1);
+    }
+    let delayedSeeks = 0;
+    await pair.host.page.route('**/rest/v1/rpc/set_playback', async route => {
+      if (route.request().postDataJSON().reason === 'user') {
+        delayedSeeks++;
+        await new Promise(resolve => setTimeout(resolve, 150));
+      }
+      await route.continue();
+    });
+    await host!.evaluate(async (video: HTMLVideoElement) => {
+      for (const target of [6, 6.2, 6.4]) {
+        video.currentTime = target;
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+    });
+    await expect.poll(() => guest!.evaluate((video: HTMLVideoElement) => video.currentTime)).toBeCloseTo(6.4, 1);
+    expect(delayedSeeks).toBeGreaterThan(0);
+    await pair.host.page.unroute('**/rest/v1/rpc/set_playback');
+    await host!.evaluate((video: HTMLVideoElement) => video.play());
+    await expect.poll(() => guest!.evaluate((video: HTMLVideoElement) => video.paused)).toBe(false);
+    await expect.poll(pair.drift).toBeLessThan(0.25);
+    await host!.evaluate((video: HTMLVideoElement) => { video.currentTime = 10; });
+    await expect.poll(() => guest!.evaluate((video: HTMLVideoElement) => video.currentTime)).toBeGreaterThanOrEqual(10);
+    await expect.poll(pair.drift).toBeLessThan(0.25);
+    await guest!.evaluate((video: HTMLVideoElement) => { video.currentTime = 17; });
+    await expect.poll(pair.drift, { timeout: 3000 }).toBeLessThan(0.25);
+    expect(await host!.evaluate((video: HTMLVideoElement) => video.currentTime)).toBeLessThan(15);
+  } finally { await pair.close(); }
+});
+
+test('Buffering: stalled downloads do not pause buffered players, and a real buffer pause recovers while paused', async ({ browser }) => {
+  const pair = await syncPair(browser);
+  const [host, guest] = pair.videos;
+  try {
+    await host!.evaluate((video: HTMLVideoElement) => video.play());
+    await expect.poll(() => guest!.evaluate((video: HTMLVideoElement) => video.paused)).toBe(false);
+    for (const video of pair.videos) await video.evaluate((v: HTMLVideoElement) => v.dispatchEvent(new Event('stalled')));
+    // Observe longer than the room's buffer-pause threshold and polling interval.
+    await new Promise(resolve => setTimeout(resolve, 3500));
+    const statuses = await Promise.all(pair.videos.map(video => video.evaluate((v: HTMLVideoElement) => ({ paused: v.paused, ready: v.readyState, position: v.currentTime, ended: v.ended }))));
+    const diagnostics = await fetch(backend + '/rest/v1/room_members?select=buffering_since,user_id&room_id=eq.' + pair.roomId, { headers: { apikey: state.anon, Authorization: 'Bearer ' + state.session.access_token } }).then(response => response.json());
+    expect(diagnostics.every((member: { buffering_since: string | null }) => member.buffering_since === null)).toBe(true);
+    for (const status of statuses) expect(status.paused).toBe(false);
+    let delayed = false;
+    await pair.guest.page.route('**/rest/v1/rpc/touch_member', async route => {
+      const body = route.request().postDataJSON();
+      if (body.buffering && !delayed) {
+        delayed = true;
+        await new Promise(resolve => setTimeout(resolve, 650));
+      }
+      await route.continue();
+    });
+    await guest!.evaluate((video: HTMLVideoElement) => {
+      Object.defineProperty(video, 'readyState', { configurable: true, value: 2 });
+      video.dispatchEvent(new Event('waiting'));
+    });
+    await expect.poll(() => delayed).toBe(true);
+    await guest!.evaluate((video: HTMLVideoElement) => {
+      delete (video as unknown as { readyState?: number }).readyState;
+      video.dispatchEvent(new Event('progress'));
+    });
+    // The delayed buffering update must not overwrite readiness when the network reorders them.
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    const readiness = await fetch(backend + '/rest/v1/room_members?select=buffering_since,user_id&room_id=eq.' + pair.roomId, { headers: { apikey: state.anon, Authorization: 'Bearer ' + state.session.access_token } }).then(response => response.json());
+    expect(readiness.every((member: { buffering_since: string | null }) => member.buffering_since === null)).toBe(true);
+    await pair.guest.page.unroute('**/rest/v1/rpc/touch_member');
+    await guest!.evaluate((video: HTMLVideoElement) => {
+      Object.defineProperty(video, 'readyState', { configurable: true, value: 2 });
+      video.dispatchEvent(new Event('waiting'));
+    });
+    for (const video of pair.videos) await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.paused)).toBe(true);
+    await guest!.evaluate((video: HTMLVideoElement) => {
+      delete (video as unknown as { readyState?: number }).readyState;
+      video.dispatchEvent(new Event('progress'));
+    });
+    for (const video of pair.videos) await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.paused), { timeout: 10000 }).toBe(false);
+    await expect.poll(pair.drift).toBeLessThan(0.25);
+  } finally { await pair.close(); }
+});

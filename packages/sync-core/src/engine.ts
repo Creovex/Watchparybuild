@@ -167,6 +167,11 @@ export class SyncEngine {
     this.awaitingSeekResult = false;
     this.lastHardSeekAt = Number.NEGATIVE_INFINITY;
     this.lastDriftCheckAt = Number.NEGATIVE_INFINITY;
+    if (this.adapter.capabilities.tightSync && this.state) {
+      this.alignOnNextCheck = true;
+      this.stopNudge(true);
+      this.seekTo(expectedPosition(this.state, this.deps.serverNow()), this.deps.now());
+    }
     this.tick();
   }
 
@@ -223,7 +228,7 @@ export class SyncEngine {
     const startAt = serverTsMs(state);
     if (state.status === 'playing' && serverNow < startAt) {
       if (!paused) this.pause(now);
-      if (Math.abs(local - state.position_sec) > PAUSED_TOLERANCE) this.seekTo(state.position_sec, now);
+      if (Math.abs(local - state.position_sec) > (this.adapter.capabilities.tightSync ? 0.05 : PAUSED_TOLERANCE)) this.seekTo(state.position_sec, now);
       this.emit('countdown', expected, local, startAt - serverNow);
       return;
     }
@@ -233,7 +238,7 @@ export class SyncEngine {
       this.stopNudge(true);
       if (!paused) {
         this.pause(now);
-      } else if (Math.abs(local - state.position_sec) > PAUSED_TOLERANCE) {
+      } else if (Math.abs(local - state.position_sec) > (this.adapter.capabilities.tightSync ? 0.05 : PAUSED_TOLERANCE)) {
         this.seekTo(state.position_sec, now);
       }
       this.emit('paused', expected, local);
@@ -268,11 +273,11 @@ export class SyncEngine {
 
     if (this.alignOnNextCheck) {
       this.alignOnNextCheck = false;
-      const threshold = this.adapter.capabilities.fineRate ? HARD_SEEK_DRIFT : COARSE_SEEK_DRIFT;
+      const threshold = this.adapter.capabilities.tightSync ? 0.05 : this.adapter.capabilities.fineRate ? HARD_SEEK_DRIFT : COARSE_SEEK_DRIFT;
       if (abs > threshold && this.adapter.capabilities.seek) {
         // Following a new state is not a hard seek: no interval limit and no failure count.
         this.stopNudge(true);
-        this.seekTo(expected + this.seekLatencySec, now);
+        this.seekTo(expected + (this.adapter.capabilities.tightSync ? 0 : this.seekLatencySec), now);
         this.pendingLatencyAt = now;
         this.emit('playing', expected, local);
         return;
@@ -281,7 +286,7 @@ export class SyncEngine {
 
     if (this.awaitingSeekResult) {
       this.awaitingSeekResult = false;
-      if (abs > HARD_SEEK_DRIFT) {
+      if (abs > (this.adapter.capabilities.tightSync ? 0.25 : HARD_SEEK_DRIFT)) {
         this.failedHardSeeks += 1;
         this.failedDrifts.push(drift);
         if (this.failedHardSeeks >= MAX_FAILED_HARD_SEEKS) {
@@ -297,7 +302,7 @@ export class SyncEngine {
       }
     }
 
-    if (abs > HARD_SEEK_DRIFT) {
+    if (abs > (this.adapter.capabilities.tightSync ? 0.25 : HARD_SEEK_DRIFT)) {
       this.hardSeek(expected, drift, now);
     } else if (this.adapter.capabilities.fineRate) {
       const sign = drift > 0 ? 1 : -1;
@@ -316,14 +321,14 @@ export class SyncEngine {
 
   private handleAdapterAction(action: UserAction): void {
     const now = this.deps.now();
-    if (this.changes.match(action.kind, action.position, now)) return;
+    if (!this.adapter.capabilities.filtersOwnActions && this.changes.match(action.kind, action.position, now)) return;
     for (const cb of this.actionListeners) cb(action);
   }
 
   private startPlay(now: number): void {
     if (this.playInFlight) return;
     this.playInFlight = true;
-    this.changes.record('play', 0, now);
+    if (!this.adapter.capabilities.filtersOwnActions) this.changes.record('play', 0, now);
     void this.adapter.play().then(
       (result) => {
         this.playInFlight = false;
@@ -340,27 +345,29 @@ export class SyncEngine {
   }
 
   private pause(now: number): void {
-    this.changes.record('pause', 0, now);
+    if (!this.adapter.capabilities.filtersOwnActions) this.changes.record('pause', 0, now);
     void this.adapter.pause();
   }
 
   private seekTo(sec: number, now: number): void {
     if (!this.adapter.capabilities.seek) return;
     const target = Math.max(0, sec);
-    if (this.changes.pending('seek', target, now)) return;
-    this.changes.record('seek', target, now);
+    if (!this.adapter.capabilities.filtersOwnActions) {
+      if (this.changes.pending('seek', target, now)) return;
+      this.changes.record('seek', target, now);
+    }
     void this.adapter.seek(target);
   }
 
   private hardSeek(expected: number, drift: number, now: number): void {
     if (!this.adapter.capabilities.seek) return;
-    if (now - this.lastHardSeekAt < HARD_SEEK_INTERVAL_MS) return;
+    if (now - this.lastHardSeekAt < (this.adapter.capabilities.tightSync ? 1000 : HARD_SEEK_INTERVAL_MS)) return;
     this.stopNudge(true);
     this.lastHardSeekAt = now;
     this.awaitingSeekResult = true;
     this.pendingLatencyAt = now;
     this.deps.log?.({ event: 'hard_seek', detail: { drift } });
-    this.seekTo(expected + this.seekLatencySec, now);
+    this.seekTo(expected + (this.adapter.capabilities.tightSync ? 0 : this.seekLatencySec), now);
   }
 
   private setRate(rate: number, now: number): void {
@@ -389,7 +396,7 @@ export class SyncEngine {
   }
 
   private recordLatency(sec: number): void {
-    if (sec <= 0 || sec > 10) return;
+    if (this.adapter.capabilities.tightSync || sec <= 0 || sec > 10) return;
     this.latencies.push(sec);
     if (this.latencies.length > SEEK_LATENCY_SAMPLES) this.latencies.shift();
     this.seekLatencySec = this.latencies.reduce((a, b) => a + b, 0) / this.latencies.length;

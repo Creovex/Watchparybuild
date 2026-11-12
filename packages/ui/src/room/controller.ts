@@ -151,6 +151,10 @@ export class RoomController {
   private epoch = 0;
   private lastSeq = -1;
   private buffering = false;
+  private touching: Promise<void> | null = null;
+  private touchQueued = false;
+  private playbackActions: Array<{ roomId: string; session: string; action: UserAction }> = [];
+  private changingPlayback: Promise<void> | null = null;
   private serverChannel: RealtimeChannel | null = null;
   private clientChannel: RealtimeChannel | null = null;
   private host: EngineHost | null = null;
@@ -284,6 +288,8 @@ export class RoomController {
   attachEngine(host: EngineHost): void {
     this.detachEngine();
     this.host = host;
+    this.buffering = host.isBuffering();
+    void this.touch();
     const playback = this.store.get().playback;
     if (playback) host.applyState(playback);
     this.hostUnsubs.push(
@@ -332,10 +338,33 @@ export class RoomController {
 
   private async handleUserAction(action: UserAction): Promise<void> {
     if (!this.isController()) {
-      // The engine restores the expected state on its next tick.
+      // Reject a guest's timeline change immediately, including while its seek is buffering.
+      this.host?.resync();
       this.notify({ message: 'Only the host controls playback.', tone: 'info', code: 'not_controller' });
       return;
     }
+    if (!this.roomId || !this.engineSession) return;
+    const last = this.playbackActions[this.playbackActions.length - 1];
+    const next = { roomId: this.roomId, session: this.engineSession, action };
+    // During a drag only the newest queued seek matters; play/pause ordering is retained.
+    if (action.kind === 'seek' && last?.action.kind === 'seek') this.playbackActions[this.playbackActions.length - 1] = next;
+    else this.playbackActions.push(next);
+    this.host?.holdForLocalAction();
+    if (!this.changingPlayback) {
+      this.changingPlayback = this.flushPlaybackActions().finally(() => { this.changingPlayback = null; });
+    }
+    await this.changingPlayback;
+  }
+
+  private async flushPlaybackActions(): Promise<void> {
+    while (this.playbackActions.length) {
+      const next = this.playbackActions.shift()!;
+      if (next.roomId !== this.roomId || next.session !== this.engineSession || !this.isController()) continue;
+      await this.applyUserAction(next.action);
+    }
+  }
+
+  private async applyUserAction(action: UserAction): Promise<void> {
     const playback = this.store.get().playback;
     if (!playback) return;
     let status: PlaybackStatus;
@@ -343,12 +372,14 @@ export class RoomController {
     else if (action.kind === 'pause') status = 'paused';
     else status = playback.status === 'playing' ? 'playing' : 'paused';
     this.host?.holdForLocalAction();
-    await this.sendPlayback(status, action.position, action.kind === 'play' ? this.playDelay() : 0, 'user');
+    const together = action.kind === 'play' || (this.store.get().room?.source === 'upload' && status === 'playing');
+    await this.sendPlayback(status, action.position, together ? this.playDelay() : 0, 'user', true);
   }
 
   /** Plays in paid source rooms start after a 3, 2, 1 countdown so cue sync members can start too. */
   private playDelay(): number {
     const room = this.store.get().room;
+    if (room?.source === 'upload') return 1000;
     return room && isPaidSource(room.source) ? COUNTDOWN_MS : 0;
   }
 
@@ -357,6 +388,7 @@ export class RoomController {
     positionSec: number,
     startDelayMs: number,
     reason: 'user' | 'buffer' | 'ended',
+    retryStale = false,
   ): Promise<boolean> {
     const playback = this.store.get().playback;
     if (!this.roomId || !playback) return false;
@@ -376,7 +408,10 @@ export class RoomController {
     if (res.code === 'stale_seq') {
       // Someone else changed playback first: take their row and drop this action.
       const row = PlaybackStateRow.safeParse(res.data);
-      if (row.success) this.applyPlayback(row.data);
+      if (row.success) {
+        this.applyPlayback(row.data);
+        if (retryStale) return this.sendPlayback(status, positionSec, startDelayMs, reason, false);
+      }
       return false;
     }
     if (res.code !== 'not_elected') this.notify({ message: '', tone: 'error', code: res.code });
@@ -780,10 +815,29 @@ export class RoomController {
     );
   }
 
-  private async touch(): Promise<void> {
+  private touch(): Promise<void> {
+    this.touchQueued = true;
+    if (!this.touching) {
+      this.touching = this.flushTouches().finally(() => { this.touching = null; });
+    }
+    return this.touching;
+  }
+
+  private async flushTouches(): Promise<void> {
+    do {
+      this.touchQueued = false;
+      await this.touchOnce();
+    } while (this.touchQueued);
+  }
+
+  private async touchOnce(): Promise<void> {
     const state = this.store.get();
     if (!this.roomId || !this.engineSession || state.status === 'fatal') return;
-    const res = await this.api.touchMember(this.roomId, this.engineSession, this.buffering, state.syncMode);
+    const roomId = this.roomId;
+    const session = this.engineSession;
+    // Serialize readiness writes so a slow "buffering" request cannot overwrite a later "ready".
+    const res = await this.api.touchMember(roomId, session, this.buffering, state.syncMode);
+    if (this.roomId !== roomId || this.engineSession !== session) return;
     if (!res.ok) {
       this.handleTouchFailure(res.code);
       return;
@@ -846,7 +900,7 @@ export class RoomController {
       const paused = await this.sendPlayback('paused', this.expectedPosition(), 0, 'buffer');
       if (paused) void this.api.postSystem(this.roomId, 'waiting_for');
     } else if (decision.action === 'resume') {
-      await this.sendPlayback('playing', playback.position_sec, 0, 'buffer');
+      await this.sendPlayback('playing', playback.position_sec, room.source === 'upload' ? 1000 : 0, 'buffer');
     }
   }
 

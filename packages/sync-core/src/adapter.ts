@@ -11,6 +11,10 @@ export interface AdapterCapabilities {
   seek: boolean;
   /** Starting estimate of the time from a seek call until playback resumes. */
   seekLatencySec: number;
+  /** Native file players can seek accurately enough to correct small shared timeline jumps. */
+  tightSync?: boolean;
+  /** Programmatic player events are already removed by this adapter. */
+  filtersOwnActions?: boolean;
 }
 
 export type UserActionKind = 'play' | 'pause' | 'seek';

@@ -1,4 +1,5 @@
 import { movieCall } from './movie-api';
+import { uploadPart } from './movie-part-upload';
 import type { MovieDetails } from './movie-check';
 const PART = 16 * 1024 * 1024;
 interface SavedUpload {
@@ -113,6 +114,11 @@ export async function uploadMovie(args: {
   });
   const count = Math.ceil(file.size / PART);
   let completed = 0;
+  const inFlight = new Map<number, number>();
+  const report = () => args.progress(
+    Math.min(file.size, completed + [...inFlight.values()].reduce((sum, bytes) => sum + bytes, 0)),
+    file.size,
+  );
   for (let first = 1; first <= count; first += 50) {
     signal.throwIfAborted();
     const requested = Array.from({ length: Math.min(50, count - first + 1) }, (_, i) => first + i);
@@ -129,7 +135,7 @@ export async function uploadMovie(args: {
       }
       return true;
     });
-    args.progress(completed, file.size);
+    report();
     let cursor = 0;
     const workers = await Promise.allSettled(
       Array.from({ length: Math.min(3, pending.length) }, async () => {
@@ -143,8 +149,11 @@ export async function uploadMovie(args: {
           for (let attempt = 0; attempt <= 5; attempt++) {
             signal.throwIfAborted();
             try {
-              const response = await fetch(url, { method: 'PUT', body: blob, signal });
-              if (response.ok && response.headers.get('ETag')) {
+              const response = await uploadPart(url, blob, signal, (bytes) => {
+                inFlight.set(part, bytes);
+                report();
+              });
+              if (response.status >= 200 && response.status < 300 && response.etag) {
                 success = true;
                 break;
               }
@@ -156,14 +165,17 @@ export async function uploadMovie(args: {
                 url = refreshed.urls[String(part)] ?? url;
               }
             } catch (error) {
-              if (signal.aborted) throw error;
+              if (signal.aborted) { inFlight.delete(part); report(); throw error; }
             }
+            inFlight.delete(part);
+            report();
             if (attempt < 5) await sleep(1000 * 2 ** attempt, signal);
           }
           if (!success)
             throw new Error('The upload connection stopped. Press Resume upload to try again with the same file.');
+          inFlight.delete(part);
           completed += blob.size;
-          args.progress(completed, file.size);
+          report();
         }
       }),
     );

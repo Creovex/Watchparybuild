@@ -26,7 +26,7 @@ export async function prepareMovie(
   source: File,
   owner: string,
   signal: AbortSignal,
-  progress: (message: string) => void,
+  progress: (message: string, fraction?: number) => void,
 ): Promise<PreparedMovie> {
   if (!/\.mkv$/i.test(source.name)) return { file: source, release: async () => {} };
   if (!navigator.locks) throw new Error('MKV preparation needs a newer browser. Try the latest Chrome.');
@@ -38,7 +38,7 @@ async function prepareMkv(
   source: File,
   owner: string,
   signal: AbortSignal,
-  progress: (message: string) => void,
+  progress: (message: string, fraction?: number) => void,
 ): Promise<PreparedMovie> {
   if (!source.size || source.size > MAX_SIZE) throw new Error('Choose a movie smaller than 5 GiB.');
   signal.throwIfAborted();
@@ -118,7 +118,7 @@ async function prepareMkv(
     if (!conversion.isValid || !conversion.utilizedTracks.includes(video) ||
         (audio && !conversion.utilizedTracks.includes(audio))) throw new Error(UNSUPPORTED);
     signal.throwIfAborted();
-    conversion.onProgress = (fraction) => progress(`Preparing MKV for playback… ${Math.floor(fraction * 100)}%`);
+    conversion.onProgress = (fraction) => progress(`Preparing MKV for playback… ${Math.floor(fraction * 100)}%`, Math.max(0, Math.min(1, fraction)));
     await conversion.execute();
     signal.throwIfAborted();
     await writable.close();

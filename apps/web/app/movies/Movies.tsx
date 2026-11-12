@@ -35,6 +35,7 @@ export function Movies({ owner }: { owner: string }) {
   const [busy, setBusy] = useState(false);
   const [checking, setChecking] = useState(false);
   const [preparation, setPreparation] = useState('');
+  const [preparationFraction, setPreparationFraction] = useState<number | undefined>();
   const [progress, setProgress] = useState({ bytes: 0, total: 0, start: 0 });
   const [resume, setResume] = useState<string | undefined>();
   const [preview, setPreview] = useState<{ url: string; title: string } | null>(null);
@@ -104,14 +105,19 @@ export function Movies({ owner }: { owner: string }) {
     setChecking(false);
     if (!chosen) return;
     setChecking(true);
+    setPreparationFraction(undefined);
     setPreparation('Checking the video and preparing its poster…');
     try {
       const { prepareMovie } = await import('@/lib/movie-prepare');
-      const ready = await prepareMovie(chosen, owner, controller.signal, (message) => {
-        if (selection.current === epoch) setPreparation(message);
+      const ready = await prepareMovie(chosen, owner, controller.signal, (message, fraction) => {
+        if (selection.current === epoch) {
+          setPreparation(message);
+          setPreparationFraction(fraction);
+        }
       });
       controller.signal.throwIfAborted();
       prepared.current = ready;
+      setPreparationFraction(undefined);
       setPreparation('Checking the video and preparing its poster…');
       const result = await checkMovie(ready.file);
       if (selection.current !== epoch) return;
@@ -248,7 +254,11 @@ export function Movies({ owner }: { owner: string }) {
   const waitingForFile = Boolean(unfinished && !resume && !busy);
   const seconds = Math.max(1, (Date.now() - progress.start) / 1000);
   const rate = progress.bytes / seconds;
-  const remaining = rate > 0 ? Math.ceil((progress.total - progress.bytes) / rate / 60) : null;
+  const remaining = !resume && seconds >= 5 && rate > 0 ? Math.ceil((progress.total - progress.bytes) / rate / 60) : null;
+  const uploadPercent = Math.min(100, Math.max(0, Math.floor((progress.bytes / Math.max(1, progress.total)) * 100)));
+  const uploadStatus = !busy
+    ? `Upload ${paused ? 'paused' : 'stopped'} at ${uploadPercent}%`
+    : progress.bytes === progress.total ? 'Finishing your movie…' : `${uploadPercent}% uploaded`;
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-5 sm:p-8">
       <nav aria-label="Movie navigation" className="flex flex-wrap items-center gap-x-5 gap-y-1">
@@ -279,7 +289,7 @@ export function Movies({ owner }: { owner: string }) {
           </p>
           <progress
             aria-label="Shared storage used"
-            className="w-full"
+            className="movie-progress"
             value={usage.site_used}
             max={usage.site_cap}
           />
@@ -330,6 +340,7 @@ export function Movies({ owner }: { owner: string }) {
             />
           </label>
           {checking ? <div>
+            <progress aria-label="Movie preparation progress" className="movie-progress" max={1} value={preparationFraction} />
             <p role="status">{preparation}</p>
             <button className="min-h-11 underline" onClick={() => {
               prepareAbort.current?.abort();
@@ -363,28 +374,27 @@ export function Movies({ owner }: { owner: string }) {
               </button>
             </>
           ) : null}
-          {busy ? (
+          {busy || paused || (resume && progress.total > 0) ? (
             <>
               <progress
                 aria-label="Upload progress"
+                className="movie-progress"
                 max={progress.total || 1}
                 value={progress.bytes}
               />
               <p role="status">
-                {progress.bytes === progress.total
-                  ? 'Finishing your movie…'
-                  : `${Math.floor((progress.bytes / Math.max(1, progress.total)) * 100)}% uploaded`}
-                {remaining !== null && progress.bytes < progress.total
+                {uploadStatus}
+                {busy && remaining !== null && progress.bytes < progress.total
                   ? `, about ${Math.max(1, remaining)} minutes left`
                   : ''}
               </p>
-              <button
+              {busy ? <button
                 className="min-h-11 underline disabled:opacity-50"
                 disabled={progress.bytes === progress.total}
                 onClick={() => abort.current?.abort()}
               >
                 Pause upload
-              </button>
+              </button> : null}
             </>
           ) : null}
         </section>

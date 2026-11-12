@@ -82,4 +82,11 @@ The eight focused browser cases passed: five audio formats with playback, seekin
 
 A production-storage browser attempt stopped before selection because Chromium rejected the managed environment's proxy certificate. Automatic review rejected adding that certificate to the persistent browser trust store; TLS verification was retained and no trust change was made. Local upload acceptance used the separate local stack instead. Temporary hosted review accounts were removed. The existing real-phone acceptance gates remain open, including large-file preparation and HEVC/device compatibility. No unrelated passing checks were reopened.
 
-Release verification is pending the MKV implementation push and deployment check.
+MKV implementation commit `477b408` was pushed to `main` and its Vercel deployment succeeded. The live media-library notice matched the new implementation over verified HTTPS. The production browser gate above remains distinct from that deployment result.
+
+
+## Upload progress and synchronization follow-up — 2026-11-12
+
+Upload progress now tracks bytes in flight for each of the three concurrent multipart requests, instead of waiting for a whole 16 MiB part to finish. Completed and in-flight bytes are added without double counting, failed attempts are removed before retry, and pausing aborts each request. The full-width amber bar stays visible while paused, MKV preparation has its own determinate/working indicator, and shared storage uses the same styling. Remaining-time estimates wait for an initial measurement and are omitted on recovered uploads rather than treating recovered bytes as newly transferred.
+
+All 69 web unit checks passed, including transport progress, cancellation and expired-URL responses. Web type checks and production builds passed. The throttled browser upload case observed nonzero progress before any multipart receipt existed, and pause/resume retained the same upload. Mobile active and desktop paused screenshots were inspected. The dedicated two-viewer movie case passed play, pause, seek and resume; two ten-sample windows measured maximum differences of 0.022 seconds during playback and 0.023 seconds after seeking and resuming. A newly prepared MKV with Dolby sound was also uploaded and played by two viewers with a seek-alignment check below 0.3 seconds. These are local-stack browser measurements, not a guarantee for every device or network. The earlier real-phone and production-browser certificate limits remain open.

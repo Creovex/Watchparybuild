@@ -99,6 +99,7 @@ test('E24: prepare an MKV with Dolby sound, upload and play it', async ({ browse
   execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=160x90:rate=24:duration=20',
     '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000:duration=20', '-c:v', 'libx264', '-c:a', 'ac3', '-y', source]);
   const host = await signed(browser);
+  const guest = await signed(browser, true);
   try {
     await host.page.goto('/movies');
     await host.page.getByLabel('Choose a movie', { exact: true }).setInputFiles(source);
@@ -108,15 +109,24 @@ test('E24: prepare an MKV with Dolby sound, upload and play it', async ({ browse
     await expect(host.page.getByRole('button', { name: 'Watch together', exact: true })).toBeVisible({ timeout: 60000 });
     await host.page.getByRole('button', { name: 'Watch together', exact: true }).click();
     await expect(host.page.getByRole('dialog', { name: 'Invite friends' })).toBeVisible({ timeout: 45000 });
+    const invite = new URL(await host.page.getByLabel('Private room invite link').inputValue());
     await host.page.keyboard.press('Escape');
+    await enter(guest.page, invite.pathname + invite.hash);
     const player = host.page.getByTestId('movie-video');
     await expect.poll(() => player.evaluate((video: HTMLVideoElement) => video.readyState)).toBeGreaterThanOrEqual(2);
     await player.evaluate((video: HTMLVideoElement) => video.play());
     await expect.poll(() => player.evaluate((video: HTMLVideoElement) => video.currentTime)).toBeGreaterThan(0.2);
     await player.evaluate((video: HTMLVideoElement) => { video.currentTime = 10; });
     await expect.poll(() => player.evaluate((video: HTMLVideoElement) => video.currentTime)).toBeGreaterThanOrEqual(10);
+    await expect.poll(() => guest.page.getByTestId('movie-video').evaluate((video: HTMLVideoElement) => video.paused)).toBe(false);
+    await expect.poll(async () => {
+      const times = await Promise.all([host.page, guest.page].map(page =>
+        page.getByTestId('movie-video').evaluate((video: HTMLVideoElement) => video.currentTime)));
+      return Math.abs(times[0]! - times[1]!);
+    }).toBeLessThan(0.3);
   } finally {
     await host.context.close();
+    await guest.context.close();
     const { unlinkSync } = await import('node:fs');
     unlinkSync(source);
   }
@@ -365,6 +375,11 @@ test('E20: pause resumes the selected file without creating another upload and p
     ).toBeEnabled();
     await expect(host.page.getByText('Upload paused.', { exact: false })).toBeVisible();
     await expect(host.page.getByLabel('Movie title', { exact: true })).toBeDisabled();
+    const progress = host.page.getByRole('progressbar', { name: 'Upload progress', exact: true });
+    await expect(progress).toBeVisible();
+    expect(await progress.evaluate((bar: HTMLProgressElement) => bar.value / bar.max)).toBeGreaterThan(0);
+    expect(await progress.evaluate((bar: HTMLProgressElement) => bar.getBoundingClientRect().width)).toBeGreaterThan(250);
+    await host.page.screenshot({ path: '/tmp/synvello-upload-progress-paused.png', fullPage: true });
     await host.page.unroute('**/*');
     await host.page.getByRole('button', { name: 'Resume upload', exact: true }).click();
     await expect(
@@ -491,6 +506,19 @@ test('Movie playback: two browsers share play, pause and seek with bounded drift
         { timeout: 15000 },
       )
       .toBeLessThan(0.15);
+    const sampleDrift = async (phase: string) => {
+      const samples: number[] = [];
+      for (let sample = 0; sample < 10; sample++) {
+        const times = await Promise.all([host.page, guest.page].map(page =>
+          page.getByTestId('movie-video').evaluate((video: HTMLVideoElement) => video.currentTime)));
+        samples.push(Math.abs(times[0]! - times[1]!));
+        // Observe sustained playback, rather than accepting a single instant of alignment.
+        await new Promise(resolve => setTimeout(resolve, 250));
+      }
+      console.log(`Movie sync ${phase}: maximum drift ${Math.max(...samples).toFixed(3)}s across ${samples.length} samples`);
+      expect(Math.max(...samples)).toBeLessThan(0.3);
+    };
+    await sampleDrift('playing');
     await host.page.getByTestId('movie-video').evaluate((v: HTMLVideoElement) => v.pause());
     await expect
       .poll(() => guest.page.getByTestId('movie-video').evaluate((v: HTMLVideoElement) => v.paused))
@@ -503,9 +531,56 @@ test('Movie playback: two browsers share play, pause and seek with bounded drift
         guest.page.getByTestId('movie-video').evaluate((v: HTMLVideoElement) => v.currentTime),
       )
       .toBeGreaterThan(7.7);
+    await expect.poll(async () => {
+      const times = await Promise.all([host.page, guest.page].map(page =>
+        page.getByTestId('movie-video').evaluate((video: HTMLVideoElement) => video.currentTime)));
+      return Math.abs(times[0]! - times[1]!);
+    }).toBeLessThan(0.3);
+    await host.page.getByTestId('movie-video').evaluate((video: HTMLVideoElement) => video.play());
+    await expect.poll(() => guest.page.getByTestId('movie-video').evaluate((video: HTMLVideoElement) => video.paused)).toBe(false);
+    await sampleDrift('resumed after seek');
   } finally {
     await api('/rest/v1/rpc/close_room', { room_id: room.data.room.id });
     await host.context.close();
     await guest.context.close();
+  }
+});
+
+test('E25: upload progress advances before a multipart part finishes', async ({ browser }) => {
+  const host = await signed(browser);
+  const folder = join(__dirname, '.auth');
+  mkdirSync(folder, { recursive: true });
+  const source = join(folder, 'progress-movie.mp4');
+  const padding = Buffer.alloc(45 * 1024 * 1024);
+  padding.writeUInt32BE(padding.length, 0);
+  padding.write('free', 4, 'ascii');
+  writeFileSync(source, Buffer.concat([readFileSync(join(__dirname, '../apps/web/test/fixtures/playable.mp4')), padding]));
+  try {
+    await host.page.setViewportSize({ width: 390, height: 844 });
+    await host.page.goto('/movies');
+    await host.page.getByLabel('Choose a movie', { exact: true }).setInputFiles(source);
+    await expect(host.page.getByLabel('Movie title', { exact: true })).toBeVisible();
+    const cdp = await host.context.newCDPSession(host.page);
+    await cdp.send('Network.enable');
+    await cdp.send('Network.emulateNetworkConditions', {
+      offline: false, latency: 10, downloadThroughput: -1, uploadThroughput: 2 * 1024 * 1024,
+    });
+    await host.page.getByRole('button', { name: 'Upload movie', exact: true }).click();
+    const progress = host.page.getByRole('progressbar', { name: 'Upload progress', exact: true });
+    await expect.poll(() => progress.evaluate((bar: HTMLProgressElement) => bar.value)).toBeGreaterThan(0);
+    const movie = (await movieRows()).find(movie => movie.status === 'uploading')!;
+    expect(movie).toBeTruthy();
+    const receipt = await api('/functions/v1/movie-upload-urls', { movie_id: movie.id, part_numbers: [1, 2, 3] });
+    expect(receipt.data.uploaded).toEqual([]);
+    expect(await progress.evaluate((bar: HTMLProgressElement) => bar.value / bar.max)).toBeLessThan(1);
+    expect(await progress.evaluate((bar: HTMLProgressElement) => bar.getBoundingClientRect().width)).toBeGreaterThan(250);
+    await host.page.screenshot({ path: '/tmp/synvello-upload-progress-active.png', fullPage: true });
+    await host.page.getByRole('button', { name: 'Pause upload', exact: true }).click();
+    await expect(host.page.getByRole('button', { name: 'Resume upload', exact: true })).toBeEnabled();
+    await expect(progress).toBeVisible();
+  } finally {
+    await host.context.close();
+    const { unlinkSync } = await import('node:fs');
+    unlinkSync(source);
   }
 });

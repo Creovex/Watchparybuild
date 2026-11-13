@@ -133,7 +133,7 @@ export function HostSheet({ open, onClose }: { open: boolean; onClose: () => voi
           ) : null}
         </section>
 
-        <ChoiceGroup
+        {room.source === 'upload' ? <p className="text-sm text-muted">Only the room admin can play, pause, or seek the movie.</p> : <ChoiceGroup
           legend="Who controls playback"
           name="control-mode"
           value={room.control_mode}
@@ -152,7 +152,7 @@ export function HostSheet({ open, onClose }: { open: boolean; onClose: () => voi
               icon: 'people',
             },
           ]}
-        />
+        />}
 
         <div className="flex flex-col divide-y divide-line">
           <Switch

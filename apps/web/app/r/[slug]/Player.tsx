@@ -49,6 +49,7 @@ export function Player({
               position: controller.expectedPosition(),
               playing: controller.store.get().playback?.status === 'playing',
             }),
+            isHost,
           )
         : E2E_STUB
           ? new StubAdapter(el)
@@ -86,7 +87,7 @@ export function Player({
     };
     // room.source only matters for logging; the player restarts when the content changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [controller, contentRef, room.source]);
+  }, [controller, contentRef, room.source, isHost]);
 
   return (
     <div className="w-full bg-black">

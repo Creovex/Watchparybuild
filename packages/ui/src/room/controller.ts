@@ -329,7 +329,7 @@ export class RoomController {
   isController(): boolean {
     const room = this.store.get().room;
     if (!room) return false;
-    return room.control_mode === 'everyone' || room.host_id === this.me.id;
+    return room.host_id === this.me.id || (room.source !== 'upload' && room.control_mode === 'everyone');
   }
 
   isHost(): boolean {

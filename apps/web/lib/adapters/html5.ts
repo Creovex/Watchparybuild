@@ -26,9 +26,11 @@ export class Html5VideoAdapter implements PlayerAdapter {
     container: HTMLElement,
     private resolveUrl: () => Promise<PlaybackUrl>,
     private state: () => { position: number; playing: boolean },
+    canControl = true,
   ) {
     this.video = document.createElement('video');
-    this.video.controls = true;
+    this.video.controls = canControl;
+    this.video.disablePictureInPicture = !canControl;
     this.video.playsInline = true;
     this.video.preload = 'auto';
     this.video.className = 'absolute inset-0 size-full bg-black';
@@ -38,6 +40,7 @@ export class Html5VideoAdapter implements PlayerAdapter {
     for (const name of ['play', 'pause', 'seeking'])
       this.video.addEventListener(name, () => {
         if (name === 'seeking') {
+          this.setBuffering(true);
           const target = this.pendingSeek;
           this.pendingSeek = null;
           if (target !== null && Math.abs(this.video.currentTime - target) < 0.01) return;
@@ -55,17 +58,17 @@ export class Html5VideoAdapter implements PlayerAdapter {
             });
       });
     this.video.addEventListener('waiting', () => {
-      this.setBuffering(this.video.readyState < 3 && !this.video.ended);
+      this.setBuffering((this.video.seeking || this.video.readyState < 3) && !this.video.ended);
     });
     this.video.addEventListener('stalled', () => {
       // A stalled download is not a stalled player: buffered video can keep playing.
-      if (this.video.readyState >= 3 || this.video.ended) this.setBuffering(false);
+      if ((!this.video.seeking && this.video.readyState >= 3) || this.video.ended) this.setBuffering(false);
       else if (!this.video.paused || this.video.seeking) this.setBuffering(true);
     });
     for (const name of ['playing', 'canplay', 'loadeddata', 'seeked', 'progress', 'pause'])
       this.video.addEventListener(name, () => {
         // Readiness can recover while a room-wide buffer pause keeps the video paused.
-        if (this.video.readyState >= 3 || this.video.ended) this.setBuffering(false);
+        if ((!this.video.seeking && this.video.readyState >= 3) || this.video.ended) this.setBuffering(false);
       });
     this.video.addEventListener('ended', () => this.ends.forEach((cb) => cb()));
     this.video.addEventListener('error', () => {
@@ -153,6 +156,7 @@ export class Html5VideoAdapter implements PlayerAdapter {
     const position = Math.max(0, Math.min(sec, this.getDuration() ?? sec));
     if (Math.abs(this.video.currentTime - position) > 0.001) {
       this.pendingSeek = position;
+      this.setBuffering(true);
       this.video.currentTime = position;
     }
   }

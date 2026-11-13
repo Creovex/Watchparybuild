@@ -434,7 +434,7 @@ describe('lifecycle', () => {
 
 describe('native movie timeline synchronization', () => {
   it('applies a small host seek directly instead of spending seconds nudging', async () => {
-    setup({ tightSync: true, seekLatencySec: 0 });
+    setup({ tightSync: true, filtersOwnActions: true, seekLatencySec: 0 });
     adapter.paused = false;
     adapter.position = 10;
     engine.applyState(state({ position_sec: 10.6 }));
@@ -444,7 +444,7 @@ describe('native movie timeline synchronization', () => {
     expect(adapter.count('seek')).toBe(1);
   });
   it('applies small paused seeks to the same position', async () => {
-    setup({ tightSync: true, seekLatencySec: 0 });
+    setup({ tightSync: true, filtersOwnActions: true, seekLatencySec: 0 });
     adapter.position = 10;
     engine.applyState(state({ status: 'paused', position_sec: 10.1 }));
     engine.tick();
@@ -452,7 +452,7 @@ describe('native movie timeline synchronization', () => {
     expect(adapter.position).toBeCloseTo(10.1, 3);
   });
   it('corrects a one-second gap directly rather than nudging it for twenty seconds', async () => {
-    setup({ tightSync: true, seekLatencySec: 0 });
+    setup({ tightSync: true, filtersOwnActions: true, seekLatencySec: 0 });
     adapter.paused = false;
     engine.applyState(state());
     engine.tick();
@@ -461,7 +461,7 @@ describe('native movie timeline synchronization', () => {
     expect(Math.abs(adapter.position - 1)).toBeLessThan(0.1);
   });
   it('restores an unauthorized local seek even while it is buffering', async () => {
-    setup({ tightSync: true, seekLatencySec: 0 });
+    setup({ tightSync: true, filtersOwnActions: true, seekLatencySec: 0 });
     engine.applyState(state({ status: 'paused', position_sec: 5 }));
     adapter.position = 15;
     adapter.buffering = true;
@@ -487,3 +487,15 @@ it('does not swallow small or rapid user seeks after the native adapter filtered
   await flush();
   expect(adapter.position).toBeCloseTo(5.4, 3);
 });
+
+for (const status of ['playing', 'paused'] as const) {
+  it(`applies a backward ${status} seek even while the old position buffers`, async () => {
+    setup({ tightSync: true, filtersOwnActions: true, seekLatencySec: 0 });
+    adapter.position = 50;
+    adapter.paused = status === 'paused';
+    adapter.buffering = true;
+    engine.applyState(state({ status, position_sec: 5 }));
+    expect(adapter.position).toBe(5);
+    expect(adapter.count('seek')).toBe(1);
+  });
+}

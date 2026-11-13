@@ -139,6 +139,18 @@ export class SyncEngine {
     this.lastDriftCheckAt = Number.NEGATIVE_INFINITY;
     this.awaitingSeekResult = false;
     if (next.status !== 'playing' || (previous && previous.rate !== next.rate)) this.stopNudge(false);
+    // A room seek must reach the actual player even if the old position is buffering,
+    // autoplay is blocked, or drift correction previously gave up.
+    if (this.adapter.capabilities.tightSync && next.status !== 'ended') {
+      this.correctionStopped = false;
+      this.failedHardSeeks = 0;
+      this.failedDrifts = [];
+      const target = expectedPosition(next, this.deps.serverNow());
+      if (Math.abs(this.adapter.getPosition() - target) > 0.05) {
+        this.stopNudge(true);
+        this.seekTo(target, this.deps.now());
+      }
+    }
     return true;
   }
 

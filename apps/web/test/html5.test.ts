@@ -54,3 +54,13 @@ describe('native movie events', () => {
     expect(video.setAttribute).toHaveBeenCalledWith('controlsList', 'nodownload noremoteplayback');
   });
 });
+
+it('does not report a new seek ready just because old frames are still buffered', async () => {
+  await adapter.seek(5);
+  video.seeking = true;
+  video.dispatchEvent(new Event('progress'));
+  expect(adapter.isBuffering()).toBe(true);
+  video.seeking = false;
+  video.dispatchEvent(new Event('seeked'));
+  expect(adapter.isBuffering()).toBe(false);
+});

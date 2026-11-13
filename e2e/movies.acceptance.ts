@@ -692,3 +692,142 @@ test('Buffering: stalled downloads do not pause buffered players, and a real buf
     await expect.poll(pair.drift).toBeLessThan(0.25);
   } finally { await pair.close(); }
 });
+
+// Observe frames submitted to the compositor, not the room clock or currentTime setter.
+async function observeFrames(page: Page) {
+  await page.getByTestId('movie-video').evaluate((video: HTMLVideoElement) => {
+    const frames: number[] = [];
+    (video as HTMLVideoElement & { presentedFrames: number[] }).presentedFrames = frames;
+    const next = (_: number, frame: VideoFrameCallbackMetadata) => {
+      frames.push(frame.mediaTime);
+      if (frames.length > 300) frames.shift();
+      video.requestVideoFrameCallback(next);
+    };
+    video.requestVideoFrameCallback(next);
+  });
+}
+async function lastFrame(page: Page) {
+  return page.getByTestId('movie-video').evaluate((video) =>
+    (video as HTMLVideoElement & { presentedFrames: number[] }).presentedFrames.at(-1) ?? -1);
+}
+async function assertFrameAt(page: Page, target: number, tolerance = 0.15) {
+  await expect.poll(async () => Math.abs(await lastFrame(page) - target), { timeout: 15000 }).toBeLessThan(tolerance);
+  await expect.poll(() => page.getByTestId('movie-video').evaluate((v: HTMLVideoElement) => v.seeking)).toBe(false);
+}
+
+for (const playing of [false, true]) {
+  test(`Backward frames: ${playing ? 'playing' : 'paused'} movie rewinds on both screens`, async ({ browser }) => {
+    const pair = await syncPair(browser);
+    try {
+      for (const page of [pair.host.page, pair.guest.page]) await observeFrames(page);
+      const host = pair.videos[0]!;
+      await host.evaluate((v: HTMLVideoElement) => { v.currentTime = 14; });
+      for (const page of [pair.host.page, pair.guest.page]) await assertFrameAt(page, 14);
+      if (playing) {
+        await host.evaluate((v: HTMLVideoElement) => v.play());
+        for (const v of pair.videos) await expect.poll(() => v.evaluate((v: HTMLVideoElement) => v.paused)).toBe(false);
+      }
+      await host.evaluate((v: HTMLVideoElement) => { v.currentTime = 3; });
+      for (const page of [pair.host.page, pair.guest.page]) await assertFrameAt(page, 3, playing ? 1.5 : 0.15);
+      if (playing) {
+        await expect.poll(async () => await lastFrame(pair.guest.page)).toBeGreaterThan(4.5);
+        await expect.poll(pair.drift).toBeLessThan(0.25);
+      }
+    } finally { await pair.close(); }
+  });
+}
+
+test('Rapid frames: alternating forward and backward drags finish at the last requested frame', async ({ browser }) => {
+  const pair = await syncPair(browser);
+  try {
+    for (const page of [pair.host.page, pair.guest.page]) await observeFrames(page);
+    await pair.host.page.route('**/rpc/set_playback', async route => {
+      await new Promise(resolve => setTimeout(resolve, 150)); await route.continue();
+    });
+    for (const target of [15, 3, 11, 2, 8, 4]) {
+      await pair.videos[0]!.evaluate((v: HTMLVideoElement, target) => { v.currentTime = target; }, target);
+      await pair.host.page.waitForTimeout(60);
+    }
+    for (const page of [pair.host.page, pair.guest.page]) await assertFrameAt(page, 4);
+    await pair.host.page.waitForTimeout(2000);
+    for (const page of [pair.host.page, pair.guest.page]) await assertFrameAt(page, 4);
+  } finally { await pair.close(); }
+});
+
+test('Buffering frames: a backwards seek supersedes the guest old buffering position', async ({ browser }) => {
+  const pair = await syncPair(browser);
+  try {
+    for (const page of [pair.host.page, pair.guest.page]) await observeFrames(page);
+    await pair.videos[0]!.evaluate((v: HTMLVideoElement) => { v.currentTime = 14; });
+    for (const page of [pair.host.page, pair.guest.page]) await assertFrameAt(page, 14);
+    await pair.videos[0]!.evaluate((v: HTMLVideoElement) => v.play());
+    for (const v of pair.videos) await expect.poll(() => v.evaluate((v: HTMLVideoElement) => v.paused)).toBe(false);
+    await pair.videos[1]!.evaluate((v: HTMLVideoElement) => {
+      Object.defineProperty(v, 'readyState', { configurable: true, value: 2 });
+      v.dispatchEvent(new Event('waiting'));
+    });
+    await pair.videos[0]!.evaluate((v: HTMLVideoElement) => { v.currentTime = 2; });
+    await assertFrameAt(pair.guest.page, 2, 1.5);
+    await pair.videos[1]!.evaluate((v: HTMLVideoElement) => {
+      delete (v as unknown as { readyState?: number }).readyState;
+      v.dispatchEvent(new Event('canplay'));
+    });
+    await expect.poll(pair.drift).toBeLessThan(0.25);
+  } finally { await pair.close(); }
+});
+
+test('Admin only: guest controls are absent and guest API commands are denied even in everyone mode', async ({ browser }) => {
+  const pair = await syncPair(browser);
+  try {
+    expect(await pair.videos[0]!.evaluate((v: HTMLVideoElement) => v.controls)).toBe(true);
+    expect(await pair.videos[1]!.evaluate((v: HTMLVideoElement) => v.controls)).toBe(false);
+    const settings = await api('/rest/v1/rpc/update_room_settings', { room_id: pair.roomId, settings: { control_mode: 'everyone' } });
+    expect(settings.ok).toBe(true);
+    for (const status of ['playing', 'paused']) {
+      const denied = await api('/rest/v1/rpc/set_playback', { room_id: pair.roomId, expected_seq: 0, status, position_sec: 12, rate: 1, start_delay_ms: 0, reason: 'user' }, true);
+      expect(denied.ok).toBe(false); expect(denied.code).toBe('not_controller');
+    }
+    await pair.videos[0]!.evaluate((v: HTMLVideoElement) => { v.currentTime = 5; });
+    await expect.poll(pair.drift).toBeLessThan(0.15);
+    await pair.videos[1]!.evaluate((v: HTMLVideoElement) => { v.currentTime = 12; });
+    await expect.poll(() => pair.videos[1]!.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeLessThan(5.2);
+    await pair.videos[1]!.evaluate(async (v: HTMLVideoElement) => {
+      try { await v.play(); } catch (error) {
+        if (!(error instanceof DOMException) || error.name !== 'AbortError') throw error;
+      }
+    });
+    for (const v of pair.videos) await expect.poll(() => v.evaluate((v: HTMLVideoElement) => v.paused)).toBe(true);
+    await pair.videos[0]!.evaluate((v: HTMLVideoElement) => v.play());
+    for (const v of pair.videos) await expect.poll(() => v.evaluate((v: HTMLVideoElement) => v.paused)).toBe(false);
+    await pair.videos[1]!.evaluate((v: HTMLVideoElement) => v.pause());
+    await expect.poll(() => pair.videos[1]!.evaluate((v: HTMLVideoElement) => v.paused)).toBe(false);
+    await expect.poll(pair.drift).toBeLessThan(0.25);
+  } finally { await pair.close(); }
+});
+
+test('Late loading frames: rejoining guest receives the latest backward seek after a delayed media response', async ({ browser }) => {
+  const pair = await syncPair(browser);
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  try {
+    await pair.videos[0]!.evaluate((v: HTMLVideoElement) => { v.currentTime = 14; });
+    await expect.poll(pair.drift).toBeLessThan(0.15);
+    let intercepted = false;
+    await pair.guest.page.route('**/synvello-movies/**', async route => {
+      intercepted = true;
+      await gate;
+      await route.continue();
+    });
+    await pair.guest.page.reload({ waitUntil: 'domcontentloaded' });
+    const seat = pair.guest.page.getByRole('button', { name: 'Take your seat', exact: true });
+    await expect(pair.guest.page.getByTestId('movie-video').or(seat)).toBeVisible();
+    if (await seat.isVisible()) await seat.click();
+    await expect.poll(() => intercepted).toBe(true);
+    await observeFrames(pair.guest.page);
+    await pair.videos[0]!.evaluate((v: HTMLVideoElement) => { v.currentTime = 2; });
+    await pair.host.page.waitForTimeout(1000);
+    release();
+    await assertFrameAt(pair.guest.page, 2);
+    await expect.poll(pair.drift).toBeLessThan(0.15);
+  } finally { release(); await pair.close(); }
+});

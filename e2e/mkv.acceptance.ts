@@ -182,3 +182,25 @@ test('unavailable browser cache reports the alternative destination route', asyn
   await expect(page.locator('output')).toContainText('Browser temporary storage is unavailable');
   await expect(page.locator('output')).toContainText('folder');
 });
+
+test('compression reduces a high-bitrate MP4 to 720p with playable AAC and exact cache recovery', async ({ page }) => {
+  const source = join(fixtures, 'large.mp4');
+  execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=1920x1080:rate=24:duration=4', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000:duration=4', '-c:v', 'libx264', '-crf', '10', '-c:a', 'aac', '-y', source]);
+  await page.goto('/?compress=1');
+  await page.getByLabel('Movie').setInputFiles(source);
+  await expect(page.locator('output')).toContainText('"content_type":"video/mp4"', { timeout: 60000 });
+  const bytes = await preparedBytes(page);
+  expect(bytes.length).toBeLessThan(readFileSync(source).length);
+  const { writeFileSync } = await import('node:fs');
+  const output = join(fixtures, 'compressed.mp4'); writeFileSync(output, Buffer.from(bytes));
+  const info = JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-show_streams', '-of', 'json', output], { encoding: 'utf8' }));
+  expect(info.streams[0].height).toBe(720);
+  expect(info.streams.map((s: { codec_name: string }) => s.codec_name)).toEqual(['h264', 'aac']);
+  execFileSync('ffmpeg', ['-v', 'error', '-i', output, '-f', 'null', '-']);
+  await page.locator('video').evaluate((v: HTMLVideoElement) => v.play());
+  await page.reload();
+  await page.getByLabel('Movie').setInputFiles(source);
+  await expect(page.locator('output')).toContainText('"content_type":"video/mp4"');
+  expect(Buffer.from(await preparedBytes(page)).equals(Buffer.from(bytes))).toBe(true);
+  console.log(`Compression: ${readFileSync(source).length} -> ${bytes.length} bytes`);
+});

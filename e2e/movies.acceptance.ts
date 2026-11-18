@@ -871,3 +871,94 @@ test('MKV storage recovery: folder retry survives picker cancellation and upload
     const { unlinkSync } = await import('node:fs'); unlinkSync(source);
   }
 });
+
+test('Library titles: owner edits persist, empty titles and other accounts are rejected', async ({ browser }) => {
+  const id = await seeded('Original title');
+  const host = await signed(browser);
+  try {
+    await host.page.goto('/movies');
+    await host.page.getByRole('button', { name: 'Edit title', exact: true }).click();
+    await host.page.getByLabel('New movie title', { exact: true }).fill('Renamed movie');
+    await host.page.getByRole('button', { name: 'Save title', exact: true }).click();
+    await expect(host.page.getByRole('heading', { name: 'Renamed movie', exact: true })).toBeVisible();
+    await host.page.reload();
+    await expect(host.page.getByRole('heading', { name: 'Renamed movie', exact: true })).toBeVisible();
+    expect((await api('/rest/v1/rpc/rename_movie', { movie_id: id, title: 'Stolen title' }, true)).code).toBe('not_found');
+    expect((await api('/rest/v1/rpc/rename_movie', { movie_id: id, title: '   ' })).code).toBe('invalid_input');
+    expect((await api('/rest/v1/rpc/rename_movie', { movie_id: id, title: 'a'.repeat(121) })).code).toBe('invalid_input');
+    expect((await movieRows())[0]!.title).toBe('Renamed movie');
+  } finally { await host.context.close(); }
+});
+
+test('Movie queue: three selected movies upload sequentially and keep distinct titles', async ({ browser }) => {
+  const host = await signed(browser);
+  const bytes = readFileSync(join(__dirname, '../apps/web/test/fixtures/playable.mp4'));
+  try {
+    await host.page.goto('/movies');
+    await host.page.getByLabel('Choose a movie', { exact: true }).setInputFiles([1, 2, 3].map(i => ({ name: `Queued ${i}.mp4`, mimeType: 'video/mp4', buffer: bytes })));
+    await expect(host.page.getByLabel('Upload queue')).toContainText('2 more movies');
+    await expect(host.page.getByRole('button', { name: 'Upload movie', exact: true })).toBeEnabled();
+    await host.page.getByRole('button', { name: 'Upload movie', exact: true }).click();
+    await expect(host.page.getByRole('button', { name: 'Watch together', exact: true })).toHaveCount(3, { timeout: 60000 });
+    expect((await movieRows()).filter(m => m.status === 'ready').map(m => m.title).sort()).toEqual(['Queued 1', 'Queued 2', 'Queued 3']);
+  } finally { await host.context.close(); }
+});
+
+test('Movie queue: invalid middle movie stops before later movies upload', async ({ browser }) => {
+  const host = await signed(browser);
+  const bytes = readFileSync(join(__dirname, '../apps/web/test/fixtures/playable.mp4'));
+  try {
+    await host.page.goto('/movies');
+    await host.page.getByLabel('Choose a movie', { exact: true }).setInputFiles([
+      { name: 'First.mp4', mimeType: 'video/mp4', buffer: bytes },
+      { name: 'Broken.mp4', mimeType: 'video/mp4', buffer: Buffer.from('broken') },
+      { name: 'Later.mp4', mimeType: 'video/mp4', buffer: bytes },
+    ]);
+    await host.page.getByRole('button', { name: 'Upload movie', exact: true }).click();
+    await expect(host.page.getByRole('main').getByRole('alert')).toContainText('unsupported');
+    expect((await movieRows()).filter(m => m.status === 'ready').map(m => m.title)).toEqual(['First']);
+    await expect(host.page.getByLabel('Upload queue')).toContainText('Later.mp4');
+    await host.page.getByRole('button', { name: 'Clear remaining queue' }).click();
+    await expect(host.page.getByLabel('Upload queue')).toHaveCount(0);
+  } finally { await host.context.close(); }
+});
+
+test('Movie queue: pausing the first upload holds later files until resume', async ({ browser }) => {
+  const host = await signed(browser);
+  const bytes = readFileSync(join(__dirname, '../apps/web/test/fixtures/playable.mp4'));
+  try {
+    await host.page.goto('/movies');
+    await host.page.route('**/synvello-movies/**', async route => {
+      if (route.request().method() === 'PUT') await new Promise(resolve => setTimeout(resolve, 1500));
+      await route.continue().catch(() => {});
+    });
+    await host.page.getByLabel('Choose a movie', { exact: true }).setInputFiles([1, 2].map(i => ({ name: `Pause queue ${i}.mp4`, mimeType: 'video/mp4', buffer: bytes })));
+    await host.page.getByRole('button', { name: 'Upload movie', exact: true }).click();
+    await host.page.getByRole('button', { name: 'Pause upload', exact: true }).click();
+    await expect(host.page.getByRole('button', { name: 'Resume upload', exact: true })).toBeEnabled();
+    expect((await movieRows()).filter(m => m.status === 'ready')).toHaveLength(0);
+    await expect(host.page.getByLabel('Upload queue')).toContainText('Pause queue 2.mp4');
+    await host.page.unroute('**/synvello-movies/**');
+    await host.page.getByRole('button', { name: 'Resume upload', exact: true }).click();
+    await expect(host.page.getByRole('button', { name: 'Watch together', exact: true })).toHaveCount(2, { timeout: 60000 });
+  } finally { await host.context.close(); }
+});
+
+test('Compressed movie upload: shows actual savings and uploads the smaller output', async ({ browser }) => {
+  const source = join(__dirname, '.auth', 'compress-upload.mp4');
+  mkdirSync(join(__dirname, '.auth'), { recursive: true });
+  execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=1920x1080:rate=24:duration=2', '-c:v', 'libx264', '-crf', '10', '-an', '-y', source]);
+  const host = await signed(browser);
+  try {
+    await host.page.goto('/movies');
+    await host.page.getByLabel('Compress before uploading (up to 720p)', { exact: true }).check();
+    await host.page.getByLabel('Choose a movie', { exact: true }).setInputFiles(source);
+    await expect(host.page.getByText(/Original:.*smaller/)).toBeVisible({ timeout: 60000 });
+    const request = host.page.waitForRequest(r => r.url().endsWith('/movie-upload-start'));
+    await host.page.getByRole('button', { name: 'Upload movie', exact: true }).click();
+    const payload = (await request).postDataJSON();
+    expect(payload.height).toBe(720);
+    expect(payload.size_bytes).toBeLessThan(readFileSync(source).length);
+    await expect(host.page.getByRole('button', { name: 'Watch together', exact: true })).toBeVisible();
+  } finally { await host.context.close(); const { unlinkSync } = await import('node:fs'); unlinkSync(source); }
+});

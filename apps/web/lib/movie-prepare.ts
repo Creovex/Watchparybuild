@@ -1,5 +1,5 @@
 import {
-  BlobSource, Conversion, Input, MATROSKA, Mp4OutputFormat, Output, StreamTarget,
+  BlobSource, Conversion, Input, ALL_FORMATS, Mp4OutputFormat, Output, StreamTarget,
 } from 'mediabunny';
 
 export interface PreparedMovie {
@@ -12,7 +12,7 @@ export class MoviePreparationStorageError extends Error {
 }
 
 const MAX_SIZE = 5 * 1024 ** 3;
-const UNSUPPORTED = 'This MKV uses a codec this device cannot convert. Try Chrome on a computer, or convert it to MP4 with H.264 video and AAC sound.';
+const UNSUPPORTED = 'This movie uses a codec this device cannot convert. Try Chrome on a computer, or convert it to MP4 with H.264 video and AAC sound.';
 
 async function sourceKey(file: File) {
   const bytes = await new Blob([
@@ -32,11 +32,12 @@ export async function prepareMovie(
   signal: AbortSignal,
   progress: (message: string, fraction?: number) => void,
   destination?: FileSystemFileHandle,
+  compress = false,
 ): Promise<PreparedMovie> {
-  if (!/\.mkv$/i.test(source.name)) return { file: source, release: async () => {} };
+  if (!compress && !/\.mkv$/i.test(source.name)) return { file: source, release: async () => {} };
   if (!navigator.locks) throw new Error('MKV preparation needs a newer browser. Try the latest Chrome.');
   return navigator.locks.request(`synvello-mkv:${owner}`, { signal }, () =>
-    prepareMkv(source, owner, signal, progress, destination));
+    prepareMkv(source, owner, signal, progress, destination, compress));
 }
 
 async function prepareMkv(
@@ -45,11 +46,12 @@ async function prepareMkv(
   signal: AbortSignal,
   progress: (message: string, fraction?: number) => void,
   destination?: FileSystemFileHandle,
+  compress = false,
 ): Promise<PreparedMovie> {
   if (!source.size || source.size > MAX_SIZE) throw new Error('Choose a movie smaller than 5 GiB.');
   signal.throwIfAborted();
-  progress('Reading MKV…');
-  const key = await sourceKey(source);
+  progress(compress ? 'Reading movie for compression…' : 'Reading MKV…');
+  const key = (await sourceKey(source)) + (compress ? ':720p-1500k-v1' : '');
   signal.throwIfAborted();
   let directory: FileSystemDirectoryHandle | undefined;
   if (!destination) {
@@ -70,7 +72,7 @@ async function prepareMkv(
   const prepared = async (): Promise<PreparedMovie> => {
     const disk = await (destination ?? await directory!.getFileHandle('movie.mp4')).getFile();
     return {
-      file: new File([disk], destination ? disk.name : source.name.replace(/\.mkv$/i, '.mp4'),
+      file: new File([disk], destination ? disk.name : source.name.replace(/\.[^.]+$/, '.mp4'),
         { type: 'video/mp4', lastModified: destination ? disk.lastModified : source.lastModified }),
       release,
     };
@@ -86,7 +88,7 @@ async function prepareMkv(
   }
   await release();
   signal.throwIfAborted();
-  const input = new Input({ source: new BlobSource(source), formats: [MATROSKA] });
+  const input = new Input({ source: new BlobSource(source), formats: ALL_FORMATS });
   let conversion: Conversion | undefined;
   let writable: FileSystemWritableFileStream | undefined;
   const stop = () => { void conversion?.cancel(); };
@@ -94,11 +96,11 @@ async function prepareMkv(
   try {
     const video = await input.getPrimaryVideoTrack();
     const audio = await input.getPrimaryAudioTrack();
-    if (!video) throw new Error('This MKV does not contain a video track.');
+    if (!video) throw new Error('This movie does not contain a video track.');
     const videoCodec = await video.getCodec();
     const audioCodec = await audio?.getCodec();
-    if (videoCodec !== 'avc' && !(await video.canDecode())) throw new Error(UNSUPPORTED);
-    if (audio && audioCodec !== 'aac') {
+    if ((compress || videoCodec !== 'avc') && !(await video.canDecode())) throw new Error(UNSUPPORTED);
+    if (audio && (compress || audioCodec !== 'aac')) {
       if (audioCodec === 'ac3' || audioCodec === 'eac3')
         (await import('@mediabunny/ac3')).registerAc3Decoder();
       if (audioCodec === 'dts') (await import('@mediabunny/dts')).registerDtsDecoder();
@@ -122,8 +124,8 @@ async function prepareMkv(
       input,
       output: new Output({ target, format: new Mp4OutputFormat({ fastStart: 'reserve' }) }),
       tracks: 'primary',
-      video: { codec: 'avc' },
-      audio: { codec: 'aac', ...(audioCodec !== 'aac' ? { numberOfChannels: 2, bitrate: 192000 } : {}) },
+      video: { codec: 'avc', ...(compress ? { forceTranscode: true, bitrate: 1500000, height: Math.max(2, Math.floor(Math.min(720, await video.getDisplayHeight()) / 2) * 2) } : {}) },
+      audio: { codec: 'aac', ...(compress || audioCodec !== 'aac' ? { forceTranscode: true, numberOfChannels: 2, bitrate: compress ? 128000 : 192000 } : {}) },
       // Do not propagate untrusted attachments or movie metadata into the prepared file.
       tags: {},
       showWarnings: false,
@@ -132,7 +134,7 @@ async function prepareMkv(
     if (!conversion.isValid || !conversion.utilizedTracks.includes(video) ||
         (audio && !conversion.utilizedTracks.includes(audio))) throw new Error(UNSUPPORTED);
     signal.throwIfAborted();
-    conversion.onProgress = (fraction) => progress(`Preparing MKV for playback… ${Math.floor(fraction * 100)}%`, Math.max(0, Math.min(1, fraction)));
+    conversion.onProgress = (fraction) => progress(`${compress ? 'Compressing movie' : 'Preparing MKV for playback'}… ${Math.floor(fraction * 100)}%`, Math.max(0, Math.min(1, fraction)));
     await conversion.execute();
     signal.throwIfAborted();
     await writable.close();
@@ -157,7 +159,7 @@ async function prepareMkv(
     if (error instanceof DOMException && error.name === 'QuotaExceededError')
       throw new MoviePreparationStorageError(destination
         ? 'The selected disk cannot store the prepared MP4. Choose a folder on a disk with more free space.'
-        : 'The browser ran out of temporary storage while preparing this MKV. This is separate from your Synvello storage allowance. Choose Prepare using a folder in Chrome or Edge on a computer, or free device space and try again.');
+        : 'The browser ran out of temporary storage while preparing this movie. This is separate from your Synvello storage allowance. Choose Prepare using a folder in Chrome or Edge on a computer, or free device space and try again.');
     throw error instanceof Error ? error : new Error('This MKV could not be prepared.');
   } finally {
     signal.removeEventListener('abort', stop);

@@ -9,6 +9,7 @@ interface SavedUpload {
   lastModified: number;
   fingerprint: string;
   title?: string;
+  compression?: boolean;
 }
 function database(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -73,6 +74,7 @@ export async function uploadMovie(args: {
   title: string;
   details: MovieDetails;
   resumeId?: string;
+  compression?: boolean;
   signal: AbortSignal;
   progress: (bytes: number, total: number) => void;
 }) {
@@ -100,6 +102,7 @@ export async function uploadMovie(args: {
       lastModified: file.lastModified,
       fingerprint: hash,
       title: args.title,
+      compression: args.compression,
     });
   }
   // Reconcile a reservation whose initial storage request may have been interrupted.

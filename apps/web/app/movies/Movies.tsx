@@ -24,6 +24,13 @@ export function Movies({ owner }: { owner: string }) {
   const [movies, setMovies] = useState<Movie[]>([]);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [error, setError] = useState('');
+  const [queue, setQueue] = useState<File[]>([]);
+  const [queueRunning, setQueueRunning] = useState(false);
+  const [compress, setCompress] = useState(false);
+  const [compressionUsed, setCompressionUsed] = useState(false);
+  const [originalSize, setOriginalSize] = useState(0);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editedTitle, setEditedTitle] = useState('');
   const [storageRetry, setStorageRetry] = useState<{ source: File; resumeId?: string } | null>(null);
   const [libraryError, setLibraryError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -112,13 +119,18 @@ export function Movies({ owner }: { owner: string }) {
     setPreparationFraction(undefined);
     setPreparation('Checking the video and preparing its poster…');
     try {
+      const saved = resumeId ? await uploadRecord(owner) : null;
+      const alreadyPrepared = saved && saved.name === chosen.name && saved.size === chosen.size && saved.lastModified === chosen.lastModified;
+      const useCompression = resumeId ? Boolean(saved?.compression && !alreadyPrepared) : compress;
+      setCompressionUsed(useCompression);
+      setOriginalSize(chosen.size);
       const { prepareMovie } = await import('@/lib/movie-prepare');
       const ready = await prepareMovie(chosen, owner, controller.signal, (message, fraction) => {
         if (selection.current === epoch) {
           setPreparation(message);
           setPreparationFraction(fraction);
         }
-      }, destination);
+      }, destination, useCompression);
       controller.signal.throwIfAborted();
       prepared.current = ready;
       setPreparationFraction(undefined);
@@ -136,6 +148,7 @@ export function Movies({ owner }: { owner: string }) {
       );
     } catch (e) {
       if (selection.current === epoch && !controller.signal.aborted) {
+        setQueueRunning(false);
         setError(e instanceof Error ? e.message : 'This file could not be read.');
         if (e instanceof Error && e.name === 'MoviePreparationStorageError')
           setStorageRetry({ source: chosen, resumeId });
@@ -153,7 +166,7 @@ export function Movies({ owner }: { owner: string }) {
     try {
       // Call directly from the click: opening the picker requires a user gesture.
       const destination = await picker.call(window, {
-        suggestedName: retry.source.name.replace(/\.mkv$/i, '.mp4'),
+        suggestedName: retry.source.name.replace(/\.[^.]+$/, '.mp4'),
         types: [{ description: 'Prepared MP4 movie', accept: { 'video/mp4': ['.mp4'] } }],
         excludeAcceptAllOption: true,
       });
@@ -163,6 +176,9 @@ export function Movies({ owner }: { owner: string }) {
         setError(error instanceof Error ? error.message : 'The destination could not be opened.');
     }
   }
+  useEffect(() => {
+    if (queueRunning && file && details && !busy && !checking && !paused && !error) void start();
+  }, [queueRunning, file, details, busy, checking, paused, error]);
   async function start() {
     if (!file || !details || busy || !title.trim()) return;
     if (
@@ -170,6 +186,7 @@ export function Movies({ owner }: { owner: string }) {
       usage &&
       file.size > Math.min(usage.quota - usage.used, usage.site_cap - usage.site_used)
     ) {
+      setQueueRunning(false);
       setError('There is not enough free storage for this file.');
       return;
     }
@@ -179,6 +196,7 @@ export function Movies({ owner }: { owner: string }) {
     const controller = new AbortController();
     abort.current = controller;
     setProgress({ bytes: 0, total: file.size, start: Date.now() });
+    let completed = false;
     try {
       await uploadMovie({
         owner,
@@ -186,15 +204,18 @@ export function Movies({ owner }: { owner: string }) {
         title: title.trim(),
         details,
         resumeId: resume,
+        compression: compressionUsed,
         signal: controller.signal,
         progress: (bytes, total) => setProgress((p) => ({ ...p, bytes, total })),
       });
+      completed = true;
       await prepared.current?.release();
       prepared.current = null;
       setFile(null);
       setDetails(null);
       setResume(undefined);
     } catch (e) {
+      setQueueRunning(false);
       if (controller.signal.aborted) setPaused(true);
       else
         setError(
@@ -223,6 +244,11 @@ export function Movies({ owner }: { owner: string }) {
       setBusy(false);
       await refresh();
     }
+    if (completed && queue.length) {
+      const [next, ...rest] = queue;
+      setQueue(rest);
+      await choose(next!);
+    } else if (completed) setQueueRunning(false);
   }
   async function action(key: string, work: () => Promise<void>) {
     if (operation.current || busy) return;
@@ -361,14 +387,30 @@ export function Movies({ owner }: { owner: string }) {
               choose the same file when you return.
             </p>
           ) : null}
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={compress} disabled={busy || checking || Boolean(file) || Boolean(resume)} onChange={(e) => setCompress(e.target.checked)} />
+            Compress before uploading (up to 720p)
+          </label>
+          <p className="text-sm text-muted">Choose compression before selecting files. It reduces picture quality and may take time; already-small movies may not shrink. Requires a supported browser and temporary disk space.</p>
+          {queue.length > 0 ? <div aria-label="Upload queue">
+            <p>{queue.length} more movies queued. Keep this page open; queued selections are not saved after closing it.</p>
+            <ul>{queue.map((queued, index) => <li key={index}>{queued.name}</li>)}</ul>
+            <button className="min-h-11 underline" disabled={busy || checking} onClick={() => { setQueue([]); setQueueRunning(false); }}>Clear remaining queue</button>
+          </div> : null}
           <label>
             Choose a movie
             <input
               type="file"
+              multiple
               accept=".mp4,.m4v,.webm,.mkv,video/x-matroska"
               className="block w-full min-w-0 max-w-full py-3 text-sm"
               disabled={busy || checking || Boolean(resume) || Boolean(pending)}
-              onChange={(e) => void choose(e.target.files?.[0] ?? null)}
+              onChange={(e) => {
+                const selected = Array.from(e.target.files ?? []);
+                setQueueRunning(false);
+                setQueue(selected.slice(1));
+                void choose(selected[0] ?? null);
+              }}
             />
           </label>
           {checking ? <div>
@@ -376,6 +418,7 @@ export function Movies({ owner }: { owner: string }) {
             <p role="status">{preparation}</p>
             <button className="min-h-11 underline" onClick={() => {
               prepareAbort.current?.abort();
+              setQueueRunning(false);
               selection.current++;
               setChecking(false);
               setFile(null);
@@ -384,6 +427,7 @@ export function Movies({ owner }: { owner: string }) {
           </div> : null}
           {details ? (
             <>
+              {compressionUsed && file ? <p role="status">Original: {gb(originalSize)} → prepared: {gb(file.size)} ({file.size < originalSize ? `${Math.round((1 - file.size / originalSize) * 100)}% smaller` : 'no size reduction'}).</p> : null}
               <label>
                 Movie title
                 <input
@@ -400,7 +444,7 @@ export function Movies({ owner }: { owner: string }) {
               <button
                 className={button}
                 disabled={busy || Boolean(pending) || !title.trim()}
-                onClick={() => void start()}
+                onClick={() => { setQueueRunning(queue.length > 0); void start(); }}
               >
                 {resume ? 'Resume upload' : 'Upload movie'}
               </button>
@@ -452,6 +496,18 @@ export function Movies({ owner }: { owner: string }) {
               </div>
             )}
             <h2 className="text-xl font-bold [overflow-wrap:anywhere]">{movie.title}</h2>
+            {movie.status === 'ready' ? editing === movie.id ? <form onSubmit={(event) => {
+              event.preventDefault();
+              void action(`rename:${movie.id}`, async () => {
+                const result = await getBrowserClient().rpc('rename_movie', { movie_id: movie.id, title: editedTitle.trim() });
+                if (result.error || !result.data?.ok) throw new Error('The title could not be saved. Try again.');
+                setEditing(null); await refresh();
+              });
+            }}>
+              <label>New movie title<input className="block w-full rounded-lg bg-surface-2 p-3" value={editedTitle} onChange={(e) => setEditedTitle(e.target.value)} maxLength={120} required /></label>
+              <button className={button} disabled={!editedTitle.trim() || busy || Boolean(pending)}>Save title</button>
+              <button type="button" className="min-h-11 underline" disabled={Boolean(pending)} onClick={() => setEditing(null)}>Cancel title edit</button>
+            </form> : <button className="min-h-11 underline" disabled={busy || Boolean(pending)} onClick={() => { setEditing(movie.id); setEditedTitle(movie.title); }}>Edit title</button> : null}
             <p className="text-sm text-muted">
               {Math.max(1, Math.round(movie.duration_sec / 60))} min · {gb(movie.size_bytes)} ·{' '}
               {{

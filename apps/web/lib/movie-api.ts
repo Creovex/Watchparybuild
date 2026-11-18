@@ -40,7 +40,10 @@ export async function movieCall<T>(name: string, body: Record<string, unknown>):
   }
   if (!result?.ok)
     throw new Error(
-      result?.code === 'not_found' ? 'This movie is no longer in your library.' : errorSentence(result?.code),
+      result?.code === 'not_found' ? 'This movie is no longer in your library.'
+        : result?.code === 'rate_limited' && name === 'movie-upload-start'
+          ? 'You can start up to 10 movie uploads per hour. The queue is paused; try again when earlier uploads are more than an hour old.'
+          : errorSentence(result?.code),
     );
   return result.data as T;
 }

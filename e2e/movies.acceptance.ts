@@ -50,7 +50,7 @@ async function signed(browser: Browser, guest = false) {
   return { context, page: await context.newPage() };
 }
 async function movieRows() {
-  const response = await fetch(backend + '/rest/v1/movie_library?select=id,title,status', {
+  const response = await fetch(backend + '/rest/v1/movie_library?select=id,title,status&status=neq.failed', {
     headers: { apikey: state.anon, Authorization: 'Bearer ' + state.session.access_token },
   });
   return response.json() as Promise<Array<{ id: string; title: string; status: string }>>;
@@ -89,6 +89,17 @@ async function enter(page: Page, path: string) {
 }
 test.beforeEach(async () => {
   await clean();
+  // Whole-suite local runs must not share the previous test's hourly start counter.
+  const resetKey = process.env.MOVIE_E2E_LOCAL_RESET_KEY;
+  if (resetKey) {
+    if (!['127.0.0.1', 'localhost'].includes(new URL(backend).hostname)) throw new Error('Counter reset is local-only');
+    for (const session of [state.session, state.guest_session]) {
+      const response = await fetch(backend + '/rest/v1/movie_calls?user_id=eq.' + session.user.id, {
+        method: 'DELETE', headers: { apikey: resetKey, Authorization: 'Bearer ' + resetKey },
+      });
+      expect(response.ok).toBe(true);
+    }
+  }
 });
 test.afterEach(async () => {
   await clean();

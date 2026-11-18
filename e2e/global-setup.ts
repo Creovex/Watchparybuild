@@ -1,5 +1,5 @@
 import { execFileSync, execSync } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 // Reads the local stack's address and keys from `supabase status`, and makes the local test video
@@ -7,7 +7,9 @@ import { dirname, join } from 'node:path';
 // project's.
 export default async function globalSetup() {
   const root = join(__dirname, '..');
-  const status = execSync('pnpm exec supabase status -o env', { cwd: root, encoding: 'utf8' });
+  const status = process.env.E2E_STACK_STATUS_FILE
+    ? readFileSync(process.env.E2E_STACK_STATUS_FILE, 'utf8')
+    : execSync('pnpm exec supabase status -o env', { cwd: root, encoding: 'utf8' });
   const env: Record<string, string> = {};
   for (const line of status.split('\n')) {
     const match = line.match(/^([A-Z_]+)="?([^"]*)"?$/);
@@ -16,6 +18,7 @@ export default async function globalSetup() {
   if (!env.API_URL || !env.ANON_KEY || !env.SERVICE_ROLE_KEY) {
     throw new Error('Start the local stack first: pnpm db:start');
   }
+  if (!['localhost', '127.0.0.1'].includes(new URL(env.API_URL).hostname)) throw new Error('E2E setup requires the local stack');
   const file = join(root, 'e2e', '.auth', 'stack.json');
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, JSON.stringify({ url: env.API_URL, anonKey: env.ANON_KEY, serviceKey: env.SERVICE_ROLE_KEY }));

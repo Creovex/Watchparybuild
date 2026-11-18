@@ -1,6 +1,6 @@
 begin;
 \ir _helpers.psql
-select plan(22);
+select plan(27);
 select tests.new_user('movie_owner');
 select tests.new_user('movie_guest');
 update public.profiles set upload_quota_bytes=1000 where id=tests.uid('movie_owner');
@@ -24,6 +24,12 @@ select set_config('tests.claim',(public.movie_storage_action(tests.uid('movie_ow
 select is(public.movie_storage_action(tests.uid('movie_owner'),'delete',jsonb_build_object('movie_id',current_setting('tests.movie')))->>'code','upload_in_progress','deletion cannot race a leased completion');
 select is(public.movie_storage_action(tests.uid('movie_owner'),'ready',jsonb_build_object('movie_id',current_setting('tests.movie'),'lease_token',current_setting('tests.claim')::jsonb->>'lease_token','actual_size',99))->>'code','size_mismatch','actual size must match reservation');
 select is(public.movie_storage_action(tests.uid('movie_owner'),'ready',jsonb_build_object('movie_id',current_setting('tests.movie'),'lease_token',current_setting('tests.claim')::jsonb->>'lease_token','actual_size',100))->>'ok','true','verified completion becomes ready');
+select is(tests.call_as('movie_owner',format('public.rename_movie(%L,%L)',current_setting('tests.movie'),'  Edited movie  '))->>'ok','true','owner can rename a ready movie');
+select is((select title from public.movies where id=current_setting('tests.movie')::uuid),'Edited movie','rename trims the title');
+select is(tests.call_as('movie_guest',format('public.rename_movie(%L,%L)',current_setting('tests.movie'),'Other title'))->>'code','not_found','other accounts cannot rename a movie');
+select is(tests.call_as('movie_owner',format('public.rename_movie(%L,%L)',current_setting('tests.movie'),'   '))->>'code','invalid_input','empty title is rejected');
+select is(tests.call_as('movie_owner',format('public.rename_movie(%L,%L)',current_setting('tests.movie'),repeat('x',121)))->>'code','invalid_input','overlong title is rejected');
+select tests.call_as('movie_owner',format('public.rename_movie(%L,%L)',current_setting('tests.movie'),'Test movie'));
 select set_config('tests.movie_room',(tests.call_as('movie_owner',format('public.create_room(%L,%L,%L,%L,%L)','Secret movie title','upload',current_setting('tests.movie'),'private','host'))->'data'->'room'->>'id'),true);
 select is(tests.call_as('movie_guest',format('public.room_preview(%L)',(select slug from public.rooms where id=current_setting('tests.movie_room')::uuid)))->'data'->>'title','Private movie room','a slug alone does not expose the movie title');
 select is(tests.call_as('movie_guest',format('public.movie_invitation(%L,%L)',(select slug from public.rooms where id=current_setting('tests.movie_room')::uuid),'wrong'))->>'code','bad_key','movie invitation requires the private key');

@@ -152,3 +152,10 @@ Tested application revision `517eda5` after the upload-throughput release. No ap
 Test harness corrections: movie queries now omit soft-deleted rows; optional local-only rate-counter reset isolates each temporary-account test; general E2E setup accepts a saved local stack status file and rejects hosted backends. Run SQL movie tests separately from active movie upload tests because their transaction sets a tiny shared-cap fixture. The separate room browser server needed its own allowed local origin/function service; initial moderation failures were test service CORS/startup issues, and one rerun was interrupted by another runner shutting down their shared dev server. Those cases passed once run with a live, correctly configured service. Production permissions/limits were not weakened.
 
 Limits: browser coverage used local Chromium, local Supabase/storage, mocked media devices for applicable automation, and small generated codec fixtures. Real-phone installation/fullscreen, real Google OAuth, live two-device microphone/camera quality, the user's particular multi-GB files, and cross-browser/device coverage remain unverified. This review does not claim those checks passed.
+
+### Profile and reaction overlap repair — 2026-11-18
+
+- Prevent the normal movie stage and its contents from shrinking below the rendered video/reaction strip. Profiles retain their own space below the player; desktop overflow remains scrollable.
+- Keep the reaction controls/picker above the video and limit floating emoji travel to the visible reaction strip.
+- Validation: production web build and web typecheck passed. Nine Chromium component-harness checks passed: five layout sizes (1280×720, 1280×450, 1024×600, 900×560, 390×844), including actual MemberStrip/ReactionBand geometry, emoji animation bounds and picker hit testing; four existing fullscreen checks passed. Restoring the old stage sizing reproduced failures in four desktop layout cases, then the fixed source was restored.
+- Scope: these are component layout tests with fixture room state and a real video element, not new live two-account playback/voice tests. No playback or voice logic changed.

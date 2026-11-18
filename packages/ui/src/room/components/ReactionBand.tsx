@@ -55,7 +55,7 @@ export function ReactionBand({
           <span
             key={r.id}
             className="absolute bottom-1 animate-rise text-2xl leading-none will-change-transform"
-            style={{ left: `${r.x * 100}%`, ['--drift-x' as string]: `${r.drift}px` }}
+            style={{ left: `${r.x * 100}%`, ['--drift-x' as string]: `${r.drift}px`, ['--rise-y' as string]: '-16px' }}
           >
             {r.emoji}
           </span>

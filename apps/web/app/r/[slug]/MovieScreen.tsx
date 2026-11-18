@@ -116,7 +116,7 @@ export function MovieScreen({ children }: { children: ReactNode }) {
 
   return (
     <div ref={stage} role={expanded ? 'dialog' : undefined} aria-modal={expanded || undefined} aria-label={expanded ? 'Expanded movie' : undefined} data-expanded={active} data-testid="movie-screen"
-      className={`movie-screen flex min-h-0 flex-col justify-center bg-black ${expanded ? 'fixed inset-0 z-[100] h-dvh w-screen' : ''}`}>
+      className={`movie-screen flex min-h-0 shrink-0 flex-col justify-center bg-black ${expanded ? 'fixed inset-0 z-[100] h-dvh w-screen' : ''}`}>
       <div className="flex shrink-0 items-center justify-end gap-3 px-3 py-1">
         {notice ? <p className="mr-auto text-sm text-muted" role="status">{notice}</p> : null}
         <button ref={button} className="min-h-11 shrink-0 px-4 text-sm underline" disabled={pending}
@@ -124,7 +124,7 @@ export function MovieScreen({ children }: { children: ReactNode }) {
           {active ? 'Exit fullscreen' : 'Fullscreen'}
         </button>
       </div>
-      <div className="movie-screen-content flex min-h-0 flex-col">{children}</div>
+      <div className="movie-screen-content flex min-h-0 shrink-0 flex-col">{children}</div>
     </div>
   );
 }

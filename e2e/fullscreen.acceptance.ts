@@ -71,3 +71,37 @@ test('native fullscreen events update enter and exit controls', async ({ page })
   await page.getByRole('button', { name: 'Exit fullscreen', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Fullscreen', exact: true })).toHaveAttribute('aria-pressed', 'false');
 });
+
+for (const size of [{ width: 1280, height: 720 }, { width: 1280, height: 450 }, { width: 1024, height: 600 }, { width: 900, height: 560 }, { width: 390, height: 844 }]) {
+  test(`profiles and reactions do not overlap the player at ${size.width}x${size.height}`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await page.goto('/?layout');
+    const stage = page.getByTestId('movie-screen');
+    const band = page.getByTestId('reaction-band');
+    const people = page.getByRole('list', { name: 'People here' });
+    const stageBox = (await stage.boundingBox())!;
+    const bandBox = (await band.boundingBox())!;
+    const peopleBox = (await people.boundingBox())!;
+    expect(bandBox.y + bandBox.height).toBeLessThanOrEqual(stageBox.y + stageBox.height + 1);
+    expect(peopleBox.y).toBeGreaterThanOrEqual(bandBox.y + bandBox.height - 1);
+    await page.getByRole('button', { name: 'React', exact: true }).click();
+    await page.getByRole('button', { name: 'Send reaction' }).click();
+    // Freeze each point in the real CSS animation; check the emoji's entire rectangle.
+    for (const time of [240, 1000, 1500]) {
+      const bounds = await band.evaluate((el, time) => {
+        const emoji = el.querySelector('span.animate-rise')!;
+        const animation = emoji.getAnimations()[0]; animation.pause(); animation.currentTime = time;
+        const b = el.getBoundingClientRect(), e = emoji.getBoundingClientRect();
+        return { top: e.top - b.top, bottom: b.bottom - e.bottom };
+      }, time);
+      expect(bounds.top).toBeGreaterThanOrEqual(0);
+      expect(bounds.bottom).toBeGreaterThanOrEqual(0);
+    }
+    await page.getByRole('button', { name: 'React', exact: true }).click();
+    await people.scrollIntoViewIfNeeded();
+    expect(await page.getByTestId('seat').evaluate(el => {
+      const r = el.getBoundingClientRect(); return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + 10));
+    })).toBe(true);
+    await page.screenshot({ path: `/tmp/synvello-layout-${size.width}-${size.height}.png` });
+  });
+}

@@ -61,7 +61,7 @@
   0% { transform: translate3d(0, 0, 0) scale(0.9); opacity: 0; }
   12% { transform: translate3d(0, -6px, 0) scale(1); opacity: 1; }
   75% { opacity: 1; }
-  100% { transform: translate3d(var(--drift-x, 0), -56px, 0) scale(1); opacity: 0; }
+  100% { transform: translate3d(var(--drift-x, 0), var(--rise-y, -56px), 0) scale(1); opacity: 0; }
 }
 @keyframes fade-out {
   0%, 70% { opacity: 1; }

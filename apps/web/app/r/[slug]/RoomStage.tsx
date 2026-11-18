@@ -319,7 +319,7 @@ export function RoomStage({
             className="shrink-0"
           />
           {desktop ? (
-            <div className="relative mx-auto mt-auto w-full max-w-3xl px-3 pb-4">
+            <div className="relative z-20 mx-auto mt-auto w-full shrink-0 max-w-3xl px-3 pb-4">
               {trayOpen ? (
                 <div className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 animate-pop-in rounded-xl bg-surface-2 p-1.5 ring-1 ring-line">
                   <ReactionTray onReact={(e) => controller.react(e)} />
@@ -356,7 +356,7 @@ export function RoomStage({
             </div>
           </aside>
         ) : (
-          <div className="safe-bottom relative shrink-0 border-t border-line bg-surface-1 px-2 pt-1.5">
+          <div className="safe-bottom relative z-20 shrink-0 border-t border-line bg-surface-1 px-2 pt-1.5">
             {trayOpen ? (
               <div className="absolute inset-x-2 bottom-full mb-2 animate-pop-in rounded-xl bg-surface-2 p-1.5 ring-1 ring-line">
                 <ReactionTray onReact={(e) => controller.react(e)} />

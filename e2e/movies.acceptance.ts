@@ -962,3 +962,55 @@ test('Compressed movie upload: shows actual savings and uploads the smaller outp
     await expect(host.page.getByRole('button', { name: 'Watch together', exact: true })).toBeVisible();
   } finally { await host.context.close(); const { unlinkSync } = await import('node:fs'); unlinkSync(source); }
 });
+
+test('Upload speed: six movie parts run concurrently and produce a complete playable upload', async ({ browser }) => {
+  const host = await signed(browser);
+  let active = 0; let maximum = 0; const parts = new Set<string>();
+  const source = join(__dirname, '.auth', 'parallel-upload.mp4');
+  mkdirSync(join(__dirname, '.auth'), { recursive: true });
+  const padding = Buffer.alloc(80 * 1024 * 1024); padding.writeUInt32BE(padding.length, 0); padding.write('free', 4, 'ascii');
+  writeFileSync(source, Buffer.concat([readFileSync(join(__dirname, '../apps/web/test/fixtures/playable.mp4')), padding]));
+  try {
+    await host.page.addInitScript(() => {
+      const open = XMLHttpRequest.prototype.open;
+      const send = XMLHttpRequest.prototype.send;
+      const methods = new WeakMap<XMLHttpRequest, string>();
+      let active = 0;
+      const state = window as Window & { maxActiveParts: number };
+      state.maxActiveParts = 0;
+      XMLHttpRequest.prototype.open = function (...args: Parameters<typeof open>) {
+        methods.set(this, args[0]); return open.apply(this, args);
+      };
+      XMLHttpRequest.prototype.send = function (...args) {
+        if (methods.get(this) === 'PUT') {
+          active++; state.maxActiveParts = Math.max(state.maxActiveParts, active);
+          this.addEventListener('loadend', () => { active--; }, { once: true });
+        }
+        return send.apply(this, args);
+      };
+      Object.defineProperty(navigator, 'deviceMemory', { value: 8, configurable: true });
+      Object.defineProperty(navigator, 'connection', { value: { saveData: false, effectiveType: '4g' }, configurable: true });
+    });
+    await host.page.route('**/synvello-movies/**', async route => {
+      if (route.request().method() !== 'PUT') return route.continue();
+      active++; maximum = Math.max(maximum, active);
+      parts.add(new URL(route.request().url()).searchParams.get('partNumber')!);
+      try {
+        await new Promise(resolve => setTimeout(resolve, 800));
+        const response = await route.fetch(); await route.fulfill({ response });
+      } finally { active--; }
+    });
+    await host.page.goto('/movies');
+    await host.page.getByLabel('Choose a movie', { exact: true }).setInputFiles(source);
+    await host.page.getByRole('button', { name: 'Upload movie', exact: true }).click();
+    await expect(host.page.getByRole('button', { name: 'Watch together', exact: true })).toBeVisible({ timeout: 60000 });
+    expect(await host.page.evaluate(() => (window as Window & { maxActiveParts: number }).maxActiveParts)).toBe(6);
+    // HTTP/1 connection/preflight scheduling can hold a dispatched XHR in the browser.
+    expect(maximum).toBeGreaterThan(3); expect(parts.size).toBe(6);
+    await host.page.getByRole('button', { name: 'Preview movie', exact: true }).click();
+    const video = host.page.getByRole('dialog').locator('video');
+    await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.readyState)).toBeGreaterThanOrEqual(2);
+    await video.evaluate((v: HTMLVideoElement) => v.play());
+    await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(0.2);
+  } finally { await host.context.close(); const { unlinkSync } = await import('node:fs'); unlinkSync(source); }
+});

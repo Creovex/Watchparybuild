@@ -7,6 +7,10 @@ export interface PreparedMovie {
   release: () => Promise<void>;
 }
 
+export class MoviePreparationStorageError extends Error {
+  override name = 'MoviePreparationStorageError';
+}
+
 const MAX_SIZE = 5 * 1024 ** 3;
 const UNSUPPORTED = 'This MKV uses a codec this device cannot convert. Try Chrome on a computer, or convert it to MP4 with H.264 video and AAC sound.';
 
@@ -27,11 +31,12 @@ export async function prepareMovie(
   owner: string,
   signal: AbortSignal,
   progress: (message: string, fraction?: number) => void,
+  destination?: FileSystemFileHandle,
 ): Promise<PreparedMovie> {
   if (!/\.mkv$/i.test(source.name)) return { file: source, release: async () => {} };
   if (!navigator.locks) throw new Error('MKV preparation needs a newer browser. Try the latest Chrome.');
   return navigator.locks.request(`synvello-mkv:${owner}`, { signal }, () =>
-    prepareMkv(source, owner, signal, progress));
+    prepareMkv(source, owner, signal, progress, destination));
 }
 
 async function prepareMkv(
@@ -39,29 +44,38 @@ async function prepareMkv(
   owner: string,
   signal: AbortSignal,
   progress: (message: string, fraction?: number) => void,
+  destination?: FileSystemFileHandle,
 ): Promise<PreparedMovie> {
   if (!source.size || source.size > MAX_SIZE) throw new Error('Choose a movie smaller than 5 GiB.');
   signal.throwIfAborted();
   progress('Reading MKV…');
   const key = await sourceKey(source);
   signal.throwIfAborted();
-  let directory: FileSystemDirectoryHandle;
-  try {
-    const root = await navigator.storage.getDirectory();
-    const cache = await root.getDirectoryHandle('synvello-mkv', { create: true });
-    directory = await cache.getDirectoryHandle(owner, { create: true });
-  } catch {
-    throw new Error('MKV preparation needs temporary device storage. Use a regular browser window with free disk space.');
+  let directory: FileSystemDirectoryHandle | undefined;
+  if (!destination) {
+    try {
+      const root = await navigator.storage.getDirectory();
+      const cache = await root.getDirectoryHandle('synvello-mkv', { create: true });
+      directory = await cache.getDirectoryHandle(owner, { create: true });
+    } catch {
+      throw new MoviePreparationStorageError('Browser temporary storage is unavailable. This is separate from your Synvello storage allowance. Try preparing using a folder in Chrome or Edge on a computer.');
+    }
+  } else if (!/\.mp4$/i.test(destination.name)) {
+    throw new Error('Save the prepared movie with an .mp4 filename.');
   }
   const release = async () => {
-    await Promise.allSettled(['movie.mp4', 'ready.json'].map((name) => directory.removeEntry(name)));
+    // User-selected output belongs to the user and must survive upload/cancellation.
+    if (directory) await Promise.allSettled(['movie.mp4', 'ready.json'].map((name) => directory!.removeEntry(name)));
   };
-  const prepared = async (): Promise<PreparedMovie> => ({
-    file: new File([await (await directory.getFileHandle('movie.mp4')).getFile()],
-      source.name.replace(/\.mkv$/i, '.mp4'), { type: 'video/mp4', lastModified: source.lastModified }),
-    release,
-  });
-  try {
+  const prepared = async (): Promise<PreparedMovie> => {
+    const disk = await (destination ?? await directory!.getFileHandle('movie.mp4')).getFile();
+    return {
+      file: new File([disk], destination ? disk.name : source.name.replace(/\.mkv$/i, '.mp4'),
+        { type: 'video/mp4', lastModified: destination ? disk.lastModified : source.lastModified }),
+      release,
+    };
+  };
+  if (directory) try {
     const record = JSON.parse(await (await (await directory.getFileHandle('ready.json')).getFile()).text());
     if (record.key === key) {
       const result = await prepared();
@@ -92,7 +106,7 @@ async function prepareMkv(
       (await import('@mediabunny/aac-encoder')).registerAacEncoder();
     }
     signal.throwIfAborted();
-    const handle = await directory.getFileHandle('movie.mp4', { create: true });
+    const handle = destination ?? await directory!.getFileHandle('movie.mp4', { create: true });
     writable = await handle.createWritable();
     let size = 0;
     const stream = writable;
@@ -124,9 +138,16 @@ async function prepareMkv(
     await writable.close();
     writable = undefined;
     const result = await prepared();
-    const manifest = await (await directory.getFileHandle('ready.json', { create: true })).createWritable();
-    await manifest.write(JSON.stringify({ key, size: result.file.size }));
-    await manifest.close();
+    if (directory) {
+      const manifest = await (await directory.getFileHandle('ready.json', { create: true })).createWritable();
+      try {
+        await manifest.write(JSON.stringify({ key, size: result.file.size }));
+        await manifest.close();
+      } catch (error) {
+        await manifest.abort().catch(() => {});
+        throw error;
+      }
+    }
     return result;
   } catch (error) {
     await conversion?.cancel().catch(() => {});
@@ -134,7 +155,9 @@ async function prepareMkv(
     await release();
     signal.throwIfAborted();
     if (error instanceof DOMException && error.name === 'QuotaExceededError')
-      throw new Error('There is not enough free device storage to prepare this MKV. Free some space and try again.');
+      throw new MoviePreparationStorageError(destination
+        ? 'The selected disk cannot store the prepared MP4. Choose a folder on a disk with more free space.'
+        : 'The browser ran out of temporary storage while preparing this MKV. This is separate from your Synvello storage allowance. Choose Prepare using a folder in Chrome or Edge on a computer, or free device space and try again.');
     throw error instanceof Error ? error : new Error('This MKV could not be prepared.');
   } finally {
     signal.removeEventListener('abort', stop);

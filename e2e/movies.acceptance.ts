@@ -831,3 +831,43 @@ test('Late loading frames: rejoining guest receives the latest backward seek aft
     await expect.poll(pair.drift).toBeLessThan(0.15);
   } finally { release(); await pair.close(); }
 });
+
+test('MKV storage recovery: folder retry survives picker cancellation and uploads the saved MP4', async ({ browser }) => {
+  const source = join(__dirname, '.auth', 'folder-retry.mkv');
+  mkdirSync(join(__dirname, '.auth'), { recursive: true });
+  execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=160x90:rate=24:duration=3', '-c:v', 'libx264', '-an', '-y', source]);
+  const host = await signed(browser);
+  try {
+    await host.page.goto('/movies');
+    await host.page.evaluate(() => {
+      const original = FileSystemFileHandle.prototype.createWritable;
+      FileSystemFileHandle.prototype.createWritable = async function (...args) {
+        if (this.name === 'movie.mp4') throw new DOMException('Browser quota full', 'QuotaExceededError');
+        return original.apply(this, args);
+      };
+      let attempts = 0;
+      Object.defineProperty(window, 'showSaveFilePicker', { configurable: true, value: async () => {
+        if (!navigator.userActivation.isActive) throw new Error('Missing user gesture');
+        if (++attempts === 1) throw new DOMException('Cancelled', 'AbortError');
+        return (await navigator.storage.getDirectory()).getFileHandle('saved-movie.mp4', { create: true });
+      } });
+    });
+    await host.page.getByLabel('Choose a movie', { exact: true }).setInputFiles(source);
+    await expect(host.page.getByRole('main').getByRole('alert')).toContainText('separate from your Synvello storage allowance');
+    const retry = host.page.getByRole('button', { name: 'Prepare using a folder', exact: true });
+    await retry.click();
+    await expect(retry).toBeVisible();
+    await expect(host.page.getByRole('button', { name: 'Upload movie', exact: true })).toHaveCount(0);
+    await retry.click();
+    await expect(host.page.getByRole('button', { name: 'Upload movie', exact: true })).toBeEnabled({ timeout: 30000 });
+    await host.page.getByLabel('Movie title', { exact: true }).fill('Folder recovery movie');
+    await host.page.getByRole('button', { name: 'Upload movie', exact: true }).click();
+    await expect(host.page.getByRole('button', { name: 'Watch together', exact: true })).toBeVisible({ timeout: 30000 });
+    expect(await host.page.evaluate(async () => (await (await (await navigator.storage.getDirectory()).getFileHandle('saved-movie.mp4')).getFile()).size)).toBeGreaterThan(1000);
+    await host.page.getByRole('button', { name: 'Preview movie', exact: true }).click();
+    await expect(host.page.getByRole('dialog', { name: 'Preview: Folder recovery movie' })).toBeVisible();
+  } finally {
+    await host.context.close();
+    const { unlinkSync } = await import('node:fs'); unlinkSync(source);
+  }
+});

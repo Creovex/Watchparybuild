@@ -82,3 +82,103 @@ test('cancel removes partial preparation and allows another selection', async ({
   await page.getByLabel('Movie').setInputFiles(join(fixtures, 'aac.mkv'));
   await expect(page.locator('output')).toContainText('"content_type":"video/mp4"', { timeout: 60000 });
 });
+
+test('quota failure explains browser storage, removes partial output and permits retry', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => {
+    const original = FileSystemFileHandle.prototype.createWritable;
+    FileSystemFileHandle.prototype.createWritable = async function (...args) {
+      const stream = await original.apply(this, args);
+      if (this.name === 'movie.mp4') stream.write = async () => { throw new DOMException('Full', 'QuotaExceededError'); };
+      return stream;
+    };
+    (window as Window & { restoreWrites?: () => void }).restoreWrites = () => { FileSystemFileHandle.prototype.createWritable = original; };
+  });
+  await page.getByLabel('Movie').setInputFiles(join(fixtures, 'aac.mkv'));
+  await expect(page.locator('output')).toContainText('browser ran out of temporary storage');
+  await expect(page.locator('output')).toContainText('separate from your Synvello storage allowance');
+  expect(await page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    const dir = await (await root.getDirectoryHandle('synvello-mkv')).getDirectoryHandle('acceptance');
+    return dir.getFileHandle('movie.mp4').then(() => true, () => false);
+  })).toBe(false);
+  await page.evaluate(() => (window as Window & { restoreWrites?: () => void }).restoreWrites!());
+  await page.getByLabel('Movie').setInputFiles([]);
+  await page.getByLabel('Movie').setInputFiles(join(fixtures, 'aac.mkv'));
+  await expect(page.locator('output')).toContainText('"content_type":"video/mp4"');
+});
+
+async function destinationWithoutBrowserStorage(page: import('@playwright/test').Page) {
+  await page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    // Real filesystem handle exercises writes; the browser-cache entry point is then disabled.
+    const handle = await root.getFileHandle('chosen-output.mp4', { create: true });
+    (window as Window & { testDestination?: FileSystemFileHandle }).testDestination = handle;
+    navigator.storage.getDirectory = async () => { throw new DOMException('Full', 'QuotaExceededError'); };
+  });
+}
+
+test('selected destination prepares playable MP4 without opening browser cache', async ({ page }) => {
+  await page.goto('/');
+  await destinationWithoutBrowserStorage(page);
+  await page.getByLabel('Movie').setInputFiles(join(fixtures, 'ac3.mkv'));
+  await expect(page.locator('output')).toContainText('"name":"chosen-output.mp4"', { timeout: 60000 });
+  await expect(page.locator('output')).toContainText('"content_type":"video/mp4"');
+  await page.locator('video').evaluate((v: HTMLVideoElement) => v.play());
+  await expect.poll(() => page.locator('video').evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(0.2);
+  const bytes = await page.evaluate(async () => {
+    const handle = (window as Window & { testDestination?: FileSystemFileHandle }).testDestination!;
+    return Array.from(new Uint8Array(await (await handle.getFile()).arrayBuffer()));
+  });
+  const { writeFileSync } = await import('node:fs');
+  const output = join(fixtures, 'folder.mp4');
+  writeFileSync(output, Buffer.from(bytes));
+  const info = JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-show_streams', '-of', 'json', output], { encoding: 'utf8' }));
+  expect(info.streams.map((s: { codec_name: string }) => s.codec_name)).toEqual(['h264', 'aac']);
+  execFileSync('ffmpeg', ['-v', 'error', '-i', output, '-f', 'null', '-']);
+  // Selecting the saved output later must preserve upload-resume name/mtime/bytes.
+  const first = await page.locator('output').textContent();
+  await page.evaluate(async () => {
+    const f = await (window as Window & { testDestination?: FileSystemFileHandle }).testDestination!.getFile();
+    const transfer = new DataTransfer(); transfer.items.add(f);
+    const input = document.querySelector('input')!;
+    input.files = transfer.files; input.dispatchEvent(new Event('change'));
+  });
+  await expect(page.locator('output')).toHaveText(first!);
+});
+
+test('selected disk quota error identifies disk, not Synvello allowance', async ({ page }) => {
+  await page.goto('/');
+  await destinationWithoutBrowserStorage(page);
+  await page.evaluate(() => {
+    FileSystemFileHandle.prototype.createWritable = async () => { throw new DOMException('Full', 'QuotaExceededError'); };
+  });
+  await page.getByLabel('Movie').setInputFiles(join(fixtures, 'aac.mkv'));
+  await expect(page.locator('output')).toContainText('selected disk cannot store');
+});
+
+test('failed external preparation preserves existing destination contents', async ({ page }) => {
+  await page.goto('/');
+  await destinationWithoutBrowserStorage(page);
+  await page.evaluate(async () => {
+    const handle = (window as Window & { testDestination?: FileSystemFileHandle }).testDestination!;
+    const stream = await handle.createWritable(); await stream.write('Existing saved file'); await stream.close();
+    const original = FileSystemFileHandle.prototype.createWritable;
+    FileSystemFileHandle.prototype.createWritable = async function (...args) {
+      const stream = await original.apply(this, args);
+      stream.write = async () => { throw new DOMException('Full', 'QuotaExceededError'); };
+      return stream;
+    };
+  });
+  await page.getByLabel('Movie').setInputFiles(join(fixtures, 'aac.mkv'));
+  await expect(page.locator('output')).toContainText('selected disk cannot store');
+  expect(await page.evaluate(async () => (await (window as Window & { testDestination?: FileSystemFileHandle }).testDestination!.getFile()).text())).toBe('Existing saved file');
+});
+
+test('unavailable browser cache reports the alternative destination route', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => { navigator.storage.getDirectory = async () => { throw new DOMException('Unavailable', 'SecurityError'); }; });
+  await page.getByLabel('Movie').setInputFiles(join(fixtures, 'aac.mkv'));
+  await expect(page.locator('output')).toContainText('Browser temporary storage is unavailable');
+  await expect(page.locator('output')).toContainText('folder');
+});

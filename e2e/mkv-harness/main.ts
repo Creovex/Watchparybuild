@@ -9,7 +9,8 @@ document.querySelector('input')!.onchange = async (event) => {
   abort = new AbortController();
   output.textContent = 'Preparing';
   try {
-    const result = await prepareMovie(file, 'acceptance', abort.signal, (message) => output.textContent = message);
+    const result = await prepareMovie(file, 'acceptance', abort.signal, (message) => output.textContent = message,
+      (window as Window & { testDestination?: FileSystemFileHandle }).testDestination);
     const details = await checkMovie(result.file);
     document.querySelector('video')!.src = URL.createObjectURL(result.file);
     output.textContent = JSON.stringify({ size: result.file.size, name: result.file.name, ...details, poster: null });

@@ -24,6 +24,7 @@ export function Movies({ owner }: { owner: string }) {
   const [movies, setMovies] = useState<Movie[]>([]);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [error, setError] = useState('');
+  const [storageRetry, setStorageRetry] = useState<{ source: File; resumeId?: string } | null>(null);
   const [libraryError, setLibraryError] = useState('');
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState('');
@@ -92,11 +93,14 @@ export function Movies({ owner }: { owner: string }) {
     return () => window.removeEventListener('beforeunload', warn);
   }, [busy, checking]);
   useEffect(() => () => { abort.current?.abort(); prepareAbort.current?.abort(); }, []);
-  async function choose(chosen: File | null, resumeId?: string) {
+  async function choose(chosen: File | null, resumeId?: string, destination?: FileSystemFileHandle) {
     prepareAbort.current?.abort();
     const controller = new AbortController();
     prepareAbort.current = controller;
     const epoch = ++selection.current;
+    setStorageRetry(null);
+    // Drop the old File snapshot; the on-disk cache still supports identical-file resume.
+    prepared.current = null;
     setFile(null);
     setDetails(null);
     setResume(resumeId);
@@ -114,7 +118,7 @@ export function Movies({ owner }: { owner: string }) {
           setPreparation(message);
           setPreparationFraction(fraction);
         }
-      });
+      }, destination);
       controller.signal.throwIfAborted();
       prepared.current = ready;
       setPreparationFraction(undefined);
@@ -131,10 +135,32 @@ export function Movies({ owner }: { owner: string }) {
             .slice(0, 120),
       );
     } catch (e) {
-      if (selection.current === epoch && !controller.signal.aborted)
+      if (selection.current === epoch && !controller.signal.aborted) {
         setError(e instanceof Error ? e.message : 'This file could not be read.');
+        if (e instanceof Error && e.name === 'MoviePreparationStorageError')
+          setStorageRetry({ source: chosen, resumeId });
+      }
     } finally {
       if (selection.current === epoch) setChecking(false);
+    }
+  }
+  async function prepareInFolder() {
+    if (!storageRetry || checking || busy) return;
+    const picker = (window as Window & { showSaveFilePicker?: (options: unknown) => Promise<FileSystemFileHandle> }).showSaveFilePicker;
+    if (!picker) return;
+    const epoch = selection.current;
+    const retry = storageRetry;
+    try {
+      // Call directly from the click: opening the picker requires a user gesture.
+      const destination = await picker.call(window, {
+        suggestedName: retry.source.name.replace(/\.mkv$/i, '.mp4'),
+        types: [{ description: 'Prepared MP4 movie', accept: { 'video/mp4': ['.mp4'] } }],
+        excludeAcceptAllOption: true,
+      });
+      if (selection.current === epoch) await choose(retry.source, retry.resumeId, destination);
+    } catch (error) {
+      if (selection.current === epoch && !(error instanceof DOMException && error.name === 'AbortError'))
+        setError(error instanceof Error ? error.message : 'The destination could not be opened.');
     }
   }
   async function start() {
@@ -299,6 +325,12 @@ export function Movies({ owner }: { owner: string }) {
         <p role="alert" className="rounded-lg bg-surface-2 p-4">
           {error}
         </p>
+      ) : null}
+      {storageRetry && !checking && typeof window !== 'undefined' && 'showSaveFilePicker' in window ? (
+        <div className="flex flex-col gap-2 rounded-xl bg-surface-1 p-4">
+          <p>Save a prepared MP4 in a folder with enough free disk space, then upload it here. This avoids the browser’s temporary-storage limit. The saved MP4 stays in your folder; choose that MP4 if you resume after closing this page.</p>
+          <button className={button} disabled={busy || Boolean(pending)} onClick={() => void prepareInFolder()}>Prepare using a folder</button>
+        </div>
       ) : null}
       {usage?.quota === 0 ? (
         <p>
